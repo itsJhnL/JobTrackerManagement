@@ -1,5 +1,7 @@
 import "server-only";
 
+import { getSiteUrl } from "@/lib/site-url";
+
 /**
  * Google OAuth 2.0 (authorization code + refresh token). No SDK: three HTTPS
  * calls. Credentials come from GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET and
@@ -18,10 +20,15 @@ export const GOOGLE_SCOPES = {
 
 export type GoogleFeature = "gmail" | "calendar";
 
-export function googleOAuthStatus() {
+/** The callback URL for this deployment. It must be listed in Google Cloud. */
+export async function googleRedirectUri() {
+  return `${await getSiteUrl()}/api/integrations/google/callback`;
+}
+
+export async function googleOAuthStatus() {
   return {
     configured: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET,
-    redirectUri: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/api/integrations/google/callback`,
+    redirectUri: await googleRedirectUri(),
   };
 }
 
@@ -32,15 +39,16 @@ function credentials() {
     throw new Error(
       "Google OAuth is not configured (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).",
     );
-  return { clientId, clientSecret, redirectUri: googleOAuthStatus().redirectUri };
+  return { clientId, clientSecret };
 }
 
-export function buildAuthUrl(
+export async function buildAuthUrl(
   state: string,
   features: GoogleFeature[],
   loginHint?: string | null,
 ) {
-  const { clientId, redirectUri } = credentials();
+  const { clientId } = credentials();
+  const redirectUri = await googleRedirectUri();
   const scopes = [GOOGLE_SCOPES.email, ...features.map((f) => GOOGLE_SCOPES[f])];
   const params = new URLSearchParams({
     client_id: clientId,
@@ -99,8 +107,9 @@ export class GoogleAuthError extends Error {
   }
 }
 
-export function exchangeCode(code: string) {
-  const { clientId, clientSecret, redirectUri } = credentials();
+export async function exchangeCode(code: string) {
+  const { clientId, clientSecret } = credentials();
+  const redirectUri = await googleRedirectUri();
   return tokenRequest({
     code,
     client_id: clientId,

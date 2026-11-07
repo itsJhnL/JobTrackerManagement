@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       new URL("/login?next=/settings?tab=integrations", request.url),
     );
 
-  const { configured } = googleOAuthStatus();
+  const { configured } = await googleOAuthStatus();
   if (!configured || !isEncryptionConfigured()) {
     return NextResponse.redirect(
       new URL("/settings?tab=integrations&error=not_configured", request.url),
@@ -38,5 +38,5 @@ export async function GET(request: NextRequest) {
     features: features.join(","),
     nonce: crypto.randomUUID(),
   });
-  return NextResponse.redirect(buildAuthUrl(state, features, user.email));
+  return NextResponse.redirect(await buildAuthUrl(state, features, user.email));
 }

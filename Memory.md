@@ -37,6 +37,7 @@ Decisions, conventions, and gotchas that are not obvious from the code. Append; 
   - Grid children default to `min-width: auto`; a `truncate` line then widens the column past a phone screen. Grids use `*:min-w-0`.
 - **Relative times** in client components go through `<TimeAgo>`; `formatTimeAgo` changes every second and otherwise causes hydration mismatches.
 - **Redirect targets** (`next` param) go through `safeNextPath()`; it keeps the query string and rejects `//host` and `/\host`.
+- **Absolute links back to the app** (auth email `redirectTo`, Google OAuth `redirect_uri`) use `getSiteUrl()` in `src/lib/site-url.ts`, which reads the request host. `NEXT_PUBLIC_SITE_URL` is only a fallback, so a localhost value in `.env.local` can no longer leak into production links. Each origin must still be allowlisted in Supabase (Auth > URL Configuration) and in Google Cloud (Authorized redirect URIs).
 - **E2E QA** was run with a throwaway user created via the service-role admin API (`email_confirm: true`) and deleted afterwards (cascade removes its rows). Never reuse a real account for automated tests.
 
 ## Conventions

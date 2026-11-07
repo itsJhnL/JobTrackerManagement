@@ -28,7 +28,7 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
     getIntegrationSummary(supabase, user.id),
   ]);
   const ai = aiStatus();
-  const oauth = googleOAuthStatus();
+  const oauth = await googleOAuthStatus();
 
   return (
     <>

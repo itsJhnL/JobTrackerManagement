@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
 import { safeNextPath } from "@/lib/safe-redirect";
+import { getSiteUrl } from "@/lib/site-url";
 
 export type AuthState = { error?: string; message?: string } | null;
 
@@ -13,10 +14,6 @@ const credentialsSchema = z.object({
   email: z.email({ message: "Enter a valid email address" }),
   password: z.string().min(8, { message: "Password must be at least 8 characters" }),
 });
-
-function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-}
 
 export async function signIn(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = credentialsSchema.safeParse({
@@ -52,7 +49,7 @@ export async function signUp(_prev: AuthState, formData: FormData): Promise<Auth
     password: parsed.data.password,
     options: {
       data: { full_name: parsed.data.full_name },
-      emailRedirectTo: `${siteUrl()}/auth/callback`,
+      emailRedirectTo: `${await getSiteUrl()}/auth/callback`,
     },
   });
   if (error) return { error: error.message };
@@ -75,7 +72,7 @@ export async function requestPasswordReset(
 
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data, {
-    redirectTo: `${siteUrl()}/auth/callback?next=/settings/account`,
+    redirectTo: `${await getSiteUrl()}/auth/callback?next=/settings/account`,
   });
   if (error) return { error: error.message };
   return { message: "If an account exists for that email, a reset link is on its way." };
