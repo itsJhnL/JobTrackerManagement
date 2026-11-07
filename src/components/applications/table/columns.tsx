@@ -4,16 +4,11 @@ import Link from "next/link";
 import { createColumnHelper } from "@tanstack/react-table";
 import { ExternalLink } from "lucide-react";
 
+import { TimeAgo } from "@/components/shared/time-ago";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EMPLOYMENT_TYPE_LABELS } from "@/lib/constants";
 import type { ApplicationListItem } from "@/lib/data/applications";
-import {
-  formatDate,
-  formatHours,
-  formatRate,
-  formatRelativeDay,
-  formatTimeAgo,
-} from "@/lib/format";
+import { formatDate, formatHours, formatRate, formatRelativeDay } from "@/lib/format";
 import { daysFromDue } from "@/lib/follow-ups";
 import { cn } from "@/lib/utils";
 
@@ -227,7 +222,7 @@ export const applicationColumns = helper.columns([
     meta: { label: "Last updated", className: "w-28" },
     cell: ({ getValue }) => (
       <span className="text-muted-foreground tabular-nums">
-        {formatTimeAgo(getValue())}
+        <TimeAgo value={getValue()} />
       </span>
     ),
   }),

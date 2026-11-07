@@ -4,11 +4,7 @@ import { AccountSection } from "@/components/settings/account-section";
 import { IntegrationsSection } from "@/components/settings/integrations-section";
 import { PreferencesForm } from "@/components/settings/preferences-form";
 import { ProfileForm } from "@/components/settings/profile-form";
-import {
-  SETTINGS_TABS,
-  SettingsTabs,
-  type SettingsTab,
-} from "@/components/settings/settings-tabs";
+import { SettingsTabs } from "@/components/settings/settings-tabs";
 import { PageHeader } from "@/components/shared/page-header";
 import { aiStatus } from "@/lib/ai";
 import { requireUser } from "@/lib/auth";
@@ -16,16 +12,14 @@ import { getIntegrationSummary } from "@/lib/data/integrations";
 import { getProfile } from "@/lib/data/profiles";
 import { isEncryptionConfigured } from "@/lib/integrations/google/crypto";
 import { googleOAuthStatus } from "@/lib/integrations/google/oauth";
+import { parseSettingsTab } from "@/lib/tabs";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage(props: PageProps<"/settings">) {
   const params = await props.searchParams;
-  const tabParam = typeof params.tab === "string" ? params.tab : "profile";
-  const initialTab: SettingsTab = (SETTINGS_TABS as readonly string[]).includes(tabParam)
-    ? (tabParam as SettingsTab)
-    : "profile";
+  const initialTab = parseSettingsTab(params.tab);
 
   const user = await requireUser();
   const supabase = await createClient();

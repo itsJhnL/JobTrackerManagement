@@ -33,7 +33,7 @@ export function JobParserTool() {
   const quickAdd = useQuickAdd();
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4 *:min-w-0 lg:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle>Job description</CardTitle>

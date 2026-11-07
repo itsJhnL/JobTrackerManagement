@@ -50,12 +50,13 @@ interface InterviewFormDialogProps {
 
 export function InterviewFormDialog(props: InterviewFormDialogProps) {
   const editing = !!props.interview;
+  const { timeZone } = useFormat();
   return (
     <FormDialog
       open={props.open}
       onOpenChange={props.onOpenChange}
       title={editing ? "Edit interview" : "Schedule interview"}
-      description="Times are entered in your local time zone; note the employer's zone separately."
+      description={`Times are entered in your working time zone (${timeZone}); note the employer's zone separately.`}
     >
       <InterviewFormInner {...props} />
     </FormDialog>

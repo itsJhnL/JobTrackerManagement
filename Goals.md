@@ -25,16 +25,22 @@ What "done" means for this project, in priority order. When two goals conflict, 
 
 ## Phase plan
 
-| Phase | Scope | Status |
-| --- | --- | --- |
-| 1 Foundation | Next.js + shadcn, theme, layout + sidebar, Supabase auth, schema + RLS | done (2026-11-05) |
-| 2 Core tracker | Dashboard, applications table, add/edit, detail page, status management | done (2026-11-05) |
-| 3 Compensation + follow-ups | Rate/hours tracking, calculator, comparison, follow-up views, scheduling | done (2026-11-05) |
-| 4 AI assistant | Gemini provider, parser, fit analyzer, writer, follow-up generator, interview prep | done (2026-11-05), untested against a live key |
-| 5 Productivity | Interviews, assessments, contacts, analytics, CSV export, templates | done (2026-11-05); document upload UI not built |
-| 6 Polish | Responsive, dark mode, a11y, error handling, performance, tests, deploy | partial: loading/error/not-found states, dark mode, keyboard nav done; no e2e tests; not yet run against a live Supabase project |
+| Phase                       | Scope                                                                              | Status                                                                                                                           |
+| --------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1 Foundation                | Next.js + shadcn, theme, layout + sidebar, Supabase auth, schema + RLS             | done (2026-11-05)                                                                                                                |
+| 2 Core tracker              | Dashboard, applications table, add/edit, detail page, status management            | done (2026-11-05)                                                                                                                |
+| 3 Compensation + follow-ups | Rate/hours tracking, calculator, comparison, follow-up views, scheduling           | done (2026-11-05)                                                                                                                |
+| 4 AI assistant              | Gemini provider, parser, fit analyzer, writer, follow-up generator, interview prep | done (2026-11-05), untested against a live key                                                                                   |
+| 5 Productivity              | Interviews, assessments, contacts, analytics, CSV export, templates                | done (2026-11-05); document upload UI not built                                                                                  |
+| 6 Polish                    | Responsive, dark mode, a11y, error handling, performance, tests, deploy            | partial: loading/error/not-found states, dark mode, keyboard nav done; no e2e tests; not yet run against a live Supabase project |
 
 | 7 Audit round (2026-11-06) | Perf (router cache, request-scoped client), time-zone picker + consistent TZ rendering, logout hardening, employment income with PHP conversion + FX history, new statuses, Google Gmail/Calendar integration layer, Inbox review, cron | done; Google flows untested without credentials |
+
+## Known gaps (as of 2026-11-07)
+
+- Google OAuth reaches Google's consent screen with the minimal scopes and rejects forged state, but a full consent → token → Gmail/Calendar sync has not been completed against a real Google account.
+- The end-to-end browser suite (Playwright, ~215 checks) lives outside the repo; there is no CI running it yet.
+- Currency conversion uses daily reference rates (ECB / ExchangeRate-API), not live market quotes; the UI says so.
 
 ## Known gaps (as of 2026-11-06)
 

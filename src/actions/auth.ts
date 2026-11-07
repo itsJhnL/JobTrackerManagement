@@ -1,9 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
+
 import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
+import { safeNextPath } from "@/lib/safe-redirect";
 
 export type AuthState = { error?: string; message?: string } | null;
 
@@ -14,11 +16,6 @@ const credentialsSchema = z.object({
 
 function siteUrl() {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-}
-
-function safeNext(value: FormDataEntryValue | null) {
-  const next = typeof value === "string" ? value : "";
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
 }
 
 export async function signIn(_prev: AuthState, formData: FormData): Promise<AuthState> {
@@ -33,7 +30,7 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: error.message };
 
-  redirect(safeNext(formData.get("next")));
+  redirect(safeNextPath(formData.get("next")));
 }
 
 export async function signUp(_prev: AuthState, formData: FormData): Promise<AuthState> {

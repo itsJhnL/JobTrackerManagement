@@ -6,11 +6,7 @@ import { ApplicationTab } from "@/components/applications/detail/application-tab
 import { CommunicationTab } from "@/components/applications/detail/communication-tab";
 import { CompensationTab } from "@/components/applications/detail/compensation-tab";
 import { DetailHeader } from "@/components/applications/detail/detail-header";
-import {
-  DETAIL_TABS,
-  DetailTabs,
-  type DetailTab,
-} from "@/components/applications/detail/detail-tabs";
+import { DetailTabs } from "@/components/applications/detail/detail-tabs";
 import { InterviewsTab } from "@/components/applications/detail/interviews-tab";
 import { OverviewTab } from "@/components/applications/detail/overview-tab";
 import { TasksTab } from "@/components/applications/detail/tasks-tab";
@@ -19,6 +15,7 @@ import { listApplicationActivities } from "@/lib/data/activities";
 import { getApplicationDetail } from "@/lib/data/applications";
 import { getProfile } from "@/lib/data/profiles";
 import { createClient } from "@/lib/supabase/server";
+import { parseDetailTab } from "@/lib/tabs";
 
 export async function generateMetadata(
   props: PageProps<"/applications/[id]">,
@@ -49,10 +46,7 @@ export default async function ApplicationDetailPage(
   ]);
   if (!detail) notFound();
 
-  const tabParam = typeof searchParams.tab === "string" ? searchParams.tab : "overview";
-  const initialTab: DetailTab = (DETAIL_TABS as readonly string[]).includes(tabParam)
-    ? (tabParam as DetailTab)
-    : "overview";
+  const initialTab = parseDetailTab(searchParams.tab);
   const a = detail.application;
   const openFollowUps = detail.followUps.filter(
     (f) => f.status === "pending" || f.status === "snoozed",

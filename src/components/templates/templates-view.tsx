@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { FileText, Plus } from "lucide-react";
 
+import { TimeAgo } from "@/components/shared/time-ago";
 import { deleteTemplate } from "@/actions/templates";
 import { CopyButton } from "@/components/shared/copy-button";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -17,7 +18,6 @@ import {
   type TemplateCategory,
 } from "@/lib/constants";
 import type { TemplateRow } from "@/lib/supabase/database.types";
-import { formatTimeAgo } from "@/lib/format";
 
 import { TemplateFormDialog } from "./template-form";
 
@@ -37,6 +37,7 @@ export function TemplatesView({ templates }: { templates: TemplateRow[] }) {
     <>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Tabs
+          className="max-w-full min-w-0 overflow-x-auto"
           value={category}
           onValueChange={(v) => setCategory(v as "all" | TemplateCategory)}
         >
@@ -77,7 +78,7 @@ export function TemplatesView({ templates }: { templates: TemplateRow[] }) {
                       {TEMPLATE_CATEGORY_LABELS[t.category as TemplateCategory] ??
                         t.category}
                     </Badge>
-                    updated {formatTimeAgo(t.updated_at)}
+                    updated <TimeAgo value={t.updated_at} />
                   </p>
                 </div>
                 <CopyButton

@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { SearchX } from "lucide-react";
 
+import { ButtonLink } from "@/components/shared/button-link";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
@@ -11,9 +10,9 @@ export default function NotFound() {
       title="Not found"
       description="That page or record does not exist, or it belongs to a different account."
       action={
-        <Button variant="outline" render={<Link href="/dashboard" />}>
+        <ButtonLink href="/dashboard" variant="outline">
           Back to dashboard
-        </Button>
+        </ButtonLink>
       }
     />
   );

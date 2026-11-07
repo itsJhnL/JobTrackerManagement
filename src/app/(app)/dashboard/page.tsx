@@ -58,15 +58,15 @@ export default async function DashboardPage() {
 
       <StatCards data={data} />
 
-      <div className="grid gap-4 lg:grid-cols-5">
-        <div className="flex flex-col gap-4 lg:col-span-3">
+      <div className="grid gap-4 *:min-w-0 lg:grid-cols-5">
+        <div className="flex min-w-0 flex-col gap-4 lg:col-span-3">
           <div id="income" className="scroll-mt-20">
             <IncomeOverview income={data.income} rates={data.rates} />
           </div>
           <Pipeline byStatus={data.counts.byStatus} total={data.counts.total} />
           <CompensationOverview data={data.pipeline} />
         </div>
-        <div className="flex flex-col gap-4 lg:col-span-2">
+        <div className="flex min-w-0 flex-col gap-4 lg:col-span-2">
           <UpcomingInterviews
             interviews={data.upcomingInterviews}
             integrations={data.integrations}

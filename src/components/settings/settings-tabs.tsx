@@ -3,14 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-export const SETTINGS_TABS = [
-  "profile",
-  "preferences",
-  "integrations",
-  "account",
-] as const;
-export type SettingsTab = (typeof SETTINGS_TABS)[number];
+import { SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "@/lib/tabs";
 
 const LABELS: Record<SettingsTab, string> = {
   profile: "Profile",
@@ -29,8 +22,8 @@ export function SettingsTabs({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const param = searchParams.get("tab") as SettingsTab | null;
-  const value = param && SETTINGS_TABS.includes(param) ? param : initialTab;
+  const param = searchParams.get("tab");
+  const value = param ? parseSettingsTab(param) : initialTab;
 
   return (
     <Tabs

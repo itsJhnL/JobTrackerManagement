@@ -28,7 +28,8 @@ describe("estimateCompensation", () => {
     const e = estimateCompensation({ rate: 25, rateType: "hourly", hoursPerWeek: 40 });
     expect(e.monthly).toBeCloseTo(25 * 40 * 4.33, 2);
     expect(e.oneTime).toBeNull();
-    expect(e.assumptions.usedDefaults).toBe(true); // working days defaulted
+    // Working days are irrelevant to hourly pay, so no default is flagged.
+    expect(e.assumptions.usedDefaults).toBe(false);
   });
 
   it("hourly with explicit hours and days marks no defaults", () => {
@@ -40,6 +41,12 @@ describe("estimateCompensation", () => {
     });
     expect(e.assumptions.usedDefaults).toBe(false);
     expect(e.monthly).toBeCloseTo(25 * 20 * 4.33, 2);
+  });
+
+  it("daily without working days flags the 5-day default", () => {
+    const e = estimateCompensation({ rate: 100, rateType: "daily", hoursPerWeek: 40 });
+    expect(e.assumptions.usedDefaults).toBe(true);
+    expect(e.monthly).toBeCloseTo(100 * 5 * 4.33, 2);
   });
 
   it("hourly without hours falls back to 40h and flags it", () => {

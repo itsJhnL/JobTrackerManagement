@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { BellRing } from "lucide-react";
 
+import { ButtonLink } from "@/components/shared/button-link";
 import { FollowUpActions } from "@/components/follow-ups/follow-up-actions";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -27,7 +27,7 @@ export function FollowUpsPanel({ overdue, today, upcoming }: FollowUpsPanelProps
   const total = overdue.length + today.length + upcoming.length;
 
   return (
-    <Card className="h-full">
+    <Card>
       <CardHeader>
         <CardTitle>Follow-ups</CardTitle>
         <CardDescription>
@@ -38,9 +38,9 @@ export function FollowUpsPanel({ overdue, today, upcoming }: FollowUpsPanelProps
               : "Nothing overdue."}
         </CardDescription>
         <CardAction>
-          <Button variant="ghost" size="sm" render={<Link href="/follow-ups" />}>
+          <ButtonLink href="/follow-ups" variant="ghost" size="sm">
             View all
-          </Button>
+          </ButtonLink>
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

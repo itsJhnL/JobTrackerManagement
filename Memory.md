@@ -28,6 +28,17 @@ Decisions, conventions, and gotchas that are not obvious from the code. Append; 
 - **2026-11-06 — Google integrations are code-complete but untested against real Google credentials.** OAuth (`/api/integrations/google/connect|callback`), AES-GCM token storage, Gmail read-only sync + AI classification + deterministic matching (`src/lib/integrations/matching.ts`, tested), Inbox review flow, Calendar push/sync. Everything requires explicit user confirmation; nothing is sent.
 - **2026-11-06 — Logout is a real `<form action={signOut}>`** submission (hidden form targeted by the menu item) so it works without client JS; `cookies().set` inside the action invalidates the client router cache, and `Cache-Control: private, no-store` is set on every app response so back-navigation after logout re-requests the page.
 
+- **Base UI / shadcn base-nova traps (found in the 2026-11-07 QA pass, each one broke a real screen):**
+  - A value exported from a `"use client"` file is a client reference inside a server component, not the value. `SETTINGS_TABS.includes` crashed Settings and the application detail page. Shared constants live in plain modules (`src/lib/tabs.ts`).
+  - `DropdownMenuLabel` (Menu.GroupLabel) must sit inside `DropdownMenuGroup` or a radio group, or the menu throws on open. That is why logout was "missing".
+  - `CommandDialog` is only the dialog shell; wrap its contents in `<Command>` or cmdk throws on open.
+  - `Select` shows the raw value (a UUID, `video`) unless the root gets `items={[{ value, label }]}`. `SelectField` passes it; do the same for any new Select.
+  - Navigation styled as a button uses `ButtonLink` (`src/components/shared/button-link.tsx`), not `Button render={<Link/>}`, which yields `<a role="button">`. Use `native` for API routes and downloads.
+  - Grid children default to `min-width: auto`; a `truncate` line then widens the column past a phone screen. Grids use `*:min-w-0`.
+- **Relative times** in client components go through `<TimeAgo>`; `formatTimeAgo` changes every second and otherwise causes hydration mismatches.
+- **Redirect targets** (`next` param) go through `safeNextPath()`; it keeps the query string and rejects `//host` and `/\host`.
+- **E2E QA** was run with a throwaway user created via the service-role admin API (`email_confirm: true`) and deleted afterwards (cascade removes its rows). Never reuse a real account for automated tests.
+
 ## Conventions
 
 - Routes: `src/app/(auth)/*` public, `src/app/(app)/*` protected by `src/app/(app)/layout.tsx` (server-side `requireUser()`).

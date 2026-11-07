@@ -15,7 +15,6 @@ import {
 
 import { deleteCommunication } from "@/actions/communications";
 import { deleteContact } from "@/actions/contacts";
-import { deleteFollowUp } from "@/actions/follow-ups";
 import { CommunicationFormDialog } from "@/components/communications/communication-form";
 import { ContactFormDialog } from "@/components/contacts/contact-form";
 import { FollowUpActions } from "@/components/follow-ups/follow-up-actions";
@@ -81,7 +80,7 @@ export function CommunicationTab({
   );
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div className="grid gap-4 *:min-w-0 lg:grid-cols-3">
       <div className="flex flex-col gap-4 lg:col-span-2">
         <Section
           title="Follow-ups"
@@ -366,11 +365,11 @@ function FollowUpList({
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                <FollowUpActions id={f.id} status={f.status} compact />
-                <EntityMenu
+                <FollowUpActions
+                  id={f.id}
+                  status={f.status}
+                  compact
                   onEdit={() => onEdit(f)}
-                  onDelete={() => deleteFollowUp(f.id)}
-                  deleteTitle="Delete this follow-up?"
                 />
               </div>
             </div>

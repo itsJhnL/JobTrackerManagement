@@ -238,6 +238,9 @@ export function SelectField<T extends FieldValues>({
             {required ? <span className="text-destructive"> *</span> : null}
           </FieldLabel>
           <Select
+            items={
+              allowEmpty ? [{ value: EMPTY, label: emptyLabel }, ...options] : options
+            }
             name={field.name}
             disabled={disabled}
             value={

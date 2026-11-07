@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { CalendarPlus, Check, Inbox, Mail, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { ButtonLink } from "@/components/shared/button-link";
 import { confirmEmail, dismissEmail, runGmailSync } from "@/actions/integrations";
 import { StatusBadge } from "@/components/applications/status-badge";
 import { FormDialog } from "@/components/forms/form-dialog";
@@ -118,9 +119,9 @@ export function InboxView({
             <RefreshCw className={cn(pending && "animate-spin")} /> Sync Gmail
           </Button>
         ) : (
-          <Button size="sm" render={<Link href="/settings?tab=integrations" />}>
+          <ButtonLink href="/settings?tab=integrations" size="sm">
             Connect Gmail
-          </Button>
+          </ButtonLink>
         )}
       </div>
 
@@ -343,6 +344,10 @@ function ReviewForm({
       <Field>
         <FieldLabel>Application</FieldLabel>
         <Select
+          items={applications.map((a) => ({
+            value: a.id,
+            label: `${a.company_name} · ${a.job_title}`,
+          }))}
           value={applicationId || null}
           onValueChange={(v) => setApplicationId(v ? String(v) : "")}
         >
@@ -398,6 +403,10 @@ function ReviewForm({
           <Field>
             <FieldLabel>Type</FieldLabel>
             <Select
+              items={INTERVIEW_TYPES.map((t) => ({
+                value: t,
+                label: INTERVIEW_TYPE_LABELS[t],
+              }))}
               value={interviewType}
               onValueChange={(v) => v && setInterviewType(v as InterviewType)}
             >
@@ -466,6 +475,13 @@ function ReviewForm({
       <Field>
         <FieldLabel>Update application status</FieldLabel>
         <Select
+          items={[
+            { value: "__keep__", label: "Keep current status" },
+            ...APPLICATION_STATUSES.map((s) => ({
+              value: s,
+              label: APPLICATION_STATUS_LABELS[s],
+            })),
+          ]}
           value={applyStatus || "__keep__"}
           onValueChange={(v) => setApplyStatus(v === "__keep__" || !v ? "" : String(v))}
         >

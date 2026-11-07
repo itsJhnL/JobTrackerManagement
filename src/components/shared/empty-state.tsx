@@ -37,7 +37,11 @@ export function EmptyState({
           <Icon />
         </EmptyMedia>
         <EmptyTitle className={size === "sm" ? "text-sm" : undefined}>{title}</EmptyTitle>
-        {description ? <EmptyDescription>{description}</EmptyDescription> : null}
+        {description ? (
+          <EmptyDescription className="[overflow-wrap:anywhere] break-words">
+            {description}
+          </EmptyDescription>
+        ) : null}
       </EmptyHeader>
       {action ? <EmptyContent>{action}</EmptyContent> : null}
     </Empty>

@@ -58,7 +58,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           />
           <SidebarInset className="min-w-0">
             <AppHeader applications={searchable} notifications={notifications} />
-            <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">{children}</main>
+            <div id="content" className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+              {children}
+            </div>
           </SidebarInset>
         </SidebarProvider>
       </QuickAddProvider>

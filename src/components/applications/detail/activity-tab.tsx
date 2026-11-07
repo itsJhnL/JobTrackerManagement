@@ -19,7 +19,7 @@ interface ActivityTabProps {
 
 export function ActivityTab({ timeZone, statusHistory, activities }: ActivityTabProps) {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4 *:min-w-0 lg:grid-cols-2">
       <Section
         title="Status history"
         description="Recorded automatically on every change."

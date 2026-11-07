@@ -6,6 +6,7 @@ import { useTransition } from "react";
 import { Briefcase, Info, RefreshCw, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
+import { ButtonLink } from "@/components/shared/button-link";
 import { refreshRatesNow } from "@/actions/exchange-rates";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useFormat } from "@/components/timezone-provider";
@@ -98,13 +99,9 @@ export function IncomeOverview({ income, rates }: IncomeOverviewProps) {
             title="No active employment yet"
             description="When an application is marked Hired it becomes an employment record and its income shows up here."
             action={
-              <Button
-                variant="outline"
-                size="sm"
-                render={<Link href="/applications?status=offer" />}
-              >
+              <ButtonLink href="/applications?status=offer" variant="outline" size="sm">
                 View offers
-              </Button>
+              </ButtonLink>
             }
           />
         ) : (

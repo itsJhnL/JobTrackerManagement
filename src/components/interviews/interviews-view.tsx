@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { CalendarClock, ExternalLink, Plus } from "lucide-react";
 
+import { TimeAgo } from "@/components/shared/time-ago";
 import { deleteInterview } from "@/actions/interviews";
 import { StatusBadge } from "@/components/applications/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -18,7 +19,7 @@ import {
   type InterviewOutcome,
 } from "@/lib/constants";
 import type { InterviewWithApplication } from "@/lib/data/interviews";
-import { dateParts, formatTimeAgo } from "@/lib/format";
+import { dateParts } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { InterviewFormDialog, type ApplicationOption } from "./interview-form";
@@ -173,7 +174,7 @@ function Group({
                     {fmt.dateTime(i.scheduled_at)}
                     {i.duration_minutes ? ` · ${i.duration_minutes} min` : ""}
                     {i.timezone ? ` · ${i.timezone}` : ""} ·{" "}
-                    {formatTimeAgo(i.scheduled_at)}
+                    <TimeAgo value={i.scheduled_at} />
                   </p>
                   <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                     <span>{INTERVIEW_TYPE_LABELS[i.interview_type]}</span>

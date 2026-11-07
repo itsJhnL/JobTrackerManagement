@@ -20,6 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/shared/button-link";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -183,15 +184,19 @@ export function IntegrationsSection({
                   </AlertDialogContent>
                 </AlertDialog>
               ) : null}
-              <Button
-                size="sm"
-                render={
-                  <a href="/api/integrations/google/connect?features=gmail,calendar" />
-                }
-                disabled={!ready}
-              >
-                <Plug /> {summary.connected ? "Reconnect" : "Connect Google"}
-              </Button>
+              {ready ? (
+                <ButtonLink
+                  href="/api/integrations/google/connect?features=gmail,calendar"
+                  size="sm"
+                  native
+                >
+                  <Plug /> {summary.connected ? "Reconnect" : "Connect Google"}
+                </ButtonLink>
+              ) : (
+                <Button size="sm" disabled>
+                  <Plug /> Connect Google
+                </Button>
+              )}
             </div>
           </div>
           {summary.lastError ? (

@@ -57,7 +57,7 @@ export function InterviewPrepTool({
     : "";
 
   return (
-    <div className="grid gap-4 lg:grid-cols-5">
+    <div className="grid gap-4 *:min-w-0 lg:grid-cols-5">
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle>Interview preparation</CardTitle>

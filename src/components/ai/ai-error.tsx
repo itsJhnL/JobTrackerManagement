@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { KeyRound, RefreshCw, TriangleAlert } from "lucide-react";
 
+import { ButtonLink } from "@/components/shared/button-link";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
@@ -48,9 +48,9 @@ export function AiErrorAlert({
         </AlertAction>
       ) : settingsHint ? (
         <AlertAction>
-          <Button size="xs" variant="outline" render={<Link href="/settings" />}>
+          <ButtonLink href="/settings" size="xs" variant="outline">
             Open settings
-          </Button>
+          </ButtonLink>
         </AlertAction>
       ) : null}
     </Alert>

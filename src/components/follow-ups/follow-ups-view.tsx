@@ -4,10 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { BellRing, Plus } from "lucide-react";
 
-import { deleteFollowUp } from "@/actions/follow-ups";
 import type { ApplicationOption } from "@/components/interviews/interview-form";
 import { EmptyState } from "@/components/shared/empty-state";
-import { EntityMenu } from "@/components/shared/entity-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -166,12 +164,10 @@ export function FollowUpsView({ followUps, applications }: FollowUpsViewProps) {
                       ) : null}
                     </div>
                     <div className="flex items-center gap-1 self-end sm:self-start">
-                      <FollowUpActions id={f.id} status={f.status} />
-                      <EntityMenu
+                      <FollowUpActions
+                        id={f.id}
+                        status={f.status}
                         onEdit={() => setDialog({ open: true, followUp: f })}
-                        onDelete={() => deleteFollowUp(f.id)}
-                        deleteTitle="Delete this follow-up?"
-                        size="icon-sm"
                       />
                     </div>
                   </li>

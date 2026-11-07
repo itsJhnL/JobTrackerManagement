@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 
 import { Button } from "@/components/ui/button";
 import {
+  Command,
   CommandDialog,
   CommandEmpty,
   CommandGroup,
@@ -78,69 +79,72 @@ export function CommandPalette({ applications }: CommandPaletteProps) {
         title="Command palette"
         description="Search applications and jump anywhere."
       >
-        <CommandInput placeholder="Search applications, pages, actions…" />
-        <CommandList>
-          <CommandEmpty>No results found.</CommandEmpty>
+        {/* This CommandDialog is only the dialog shell; cmdk parts need the <Command> root for their store. */}
+        <Command>
+          <CommandInput placeholder="Search applications, pages, actions…" />
+          <CommandList>
+            <CommandEmpty>No results found.</CommandEmpty>
 
-          <CommandGroup heading="Actions">
-            <CommandItem onSelect={() => run(() => quickAdd.open())}>
-              <Plus />
-              New application
-              <CommandShortcut>N</CommandShortcut>
-            </CommandItem>
-            <CommandItem
-              onSelect={() =>
-                run(() => setTheme(resolvedTheme === "dark" ? "light" : "dark"))
-              }
-            >
-              {resolvedTheme === "dark" ? <Sun /> : <Moon />}
-              Toggle theme
-            </CommandItem>
-          </CommandGroup>
-
-          {applications.length > 0 ? (
-            <>
-              <CommandSeparator />
-              <CommandGroup heading="Applications">
-                {applications.slice(0, 50).map((a) => (
-                  <CommandItem
-                    key={a.id}
-                    value={`${a.company_name} ${a.job_title}`}
-                    onSelect={() => run(() => router.push(`/applications/${a.id}`))}
-                  >
-                    <Building2 />
-                    <span className="truncate">
-                      {a.company_name}
-                      <span className="text-muted-foreground"> · {a.job_title}</span>
-                    </span>
-                    <CommandShortcut>
-                      {APPLICATION_STATUS_LABELS[a.status]}
-                    </CommandShortcut>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </>
-          ) : null}
-
-          <CommandSeparator />
-          <CommandGroup heading="Go to">
-            {ALL_NAV_ITEMS.map((item) => (
-              <CommandItem
-                key={item.href}
-                value={`${item.title} ${item.hint ?? ""}`}
-                onSelect={() => run(() => router.push(item.href))}
-              >
-                <item.icon />
-                {item.title}
-                {item.hint ? (
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {item.hint}
-                  </span>
-                ) : null}
+            <CommandGroup heading="Actions">
+              <CommandItem onSelect={() => run(() => quickAdd.open())}>
+                <Plus />
+                New application
+                <CommandShortcut>N</CommandShortcut>
               </CommandItem>
-            ))}
-          </CommandGroup>
-        </CommandList>
+              <CommandItem
+                onSelect={() =>
+                  run(() => setTheme(resolvedTheme === "dark" ? "light" : "dark"))
+                }
+              >
+                {resolvedTheme === "dark" ? <Sun /> : <Moon />}
+                Toggle theme
+              </CommandItem>
+            </CommandGroup>
+
+            {applications.length > 0 ? (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Applications">
+                  {applications.slice(0, 50).map((a) => (
+                    <CommandItem
+                      key={a.id}
+                      value={`${a.company_name} ${a.job_title}`}
+                      onSelect={() => run(() => router.push(`/applications/${a.id}`))}
+                    >
+                      <Building2 />
+                      <span className="truncate">
+                        {a.company_name}
+                        <span className="text-muted-foreground"> · {a.job_title}</span>
+                      </span>
+                      <CommandShortcut>
+                        {APPLICATION_STATUS_LABELS[a.status]}
+                      </CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            ) : null}
+
+            <CommandSeparator />
+            <CommandGroup heading="Go to">
+              {ALL_NAV_ITEMS.map((item) => (
+                <CommandItem
+                  key={item.href}
+                  value={`${item.title} ${item.hint ?? ""}`}
+                  onSelect={() => run(() => router.push(item.href))}
+                >
+                  <item.icon />
+                  {item.title}
+                  {item.hint ? (
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {item.hint}
+                    </span>
+                  ) : null}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
       </CommandDialog>
     </>
   );

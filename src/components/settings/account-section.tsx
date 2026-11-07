@@ -3,11 +3,11 @@
 import { useActionState } from "react";
 import { Download, KeyRound, LogOut, Sparkles } from "lucide-react";
 
+import { ButtonLink } from "@/components/shared/button-link";
 import { signOut, updatePassword, type AuthState } from "@/actions/auth";
 import { SubmitButton } from "@/components/shared/submit-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -84,12 +84,12 @@ export function AccountSection({ email, ai }: AccountSectionProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Button variant="outline" render={<a href="/api/export/csv" />}>
+          <ButtonLink href="/api/export/csv" variant="outline" native>
             <Download /> Active applications
-          </Button>
-          <Button variant="outline" render={<a href="/api/export/csv?archived=1" />}>
+          </ButtonLink>
+          <ButtonLink href="/api/export/csv?archived=1" variant="outline" native>
             <Download /> Including archived
-          </Button>
+          </ButtonLink>
         </CardContent>
       </Card>
 

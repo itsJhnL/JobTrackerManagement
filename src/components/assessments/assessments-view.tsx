@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ClipboardList, ExternalLink, Plus } from "lucide-react";
 
+import { TimeAgo } from "@/components/shared/time-ago";
 import { deleteAssessment } from "@/actions/assessments";
 import { ASSESSMENT_STATUS_STYLES } from "@/components/applications/detail/tasks-tab";
 import { StatusBadge } from "@/components/applications/status-badge";
@@ -15,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ASSESSMENT_STATUS_LABELS } from "@/lib/constants";
 import type { AssessmentWithApplication } from "@/lib/data/assessments";
-import { formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { AssessmentFormDialog } from "./assessment-form";
@@ -159,9 +159,13 @@ function Group({
                         : "text-muted-foreground",
                     )}
                   >
-                    {a.deadline
-                      ? `Due ${fmt.dateTime(a.deadline)} · ${formatTimeAgo(a.deadline)}`
-                      : "No deadline"}
+                    {a.deadline ? (
+                      <>
+                        Due {fmt.dateTime(a.deadline)} · <TimeAgo value={a.deadline} />
+                      </>
+                    ) : (
+                      "No deadline"
+                    )}
                   </p>
                   {a.description ? (
                     <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">

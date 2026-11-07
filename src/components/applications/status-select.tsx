@@ -36,6 +36,10 @@ export function StatusSelect({ id, status, size = "sm", className }: StatusSelec
 
   return (
     <Select
+      items={APPLICATION_STATUSES.map((s) => ({
+        value: s,
+        label: APPLICATION_STATUS_LABELS[s],
+      }))}
       value={optimistic}
       onValueChange={(value) => {
         if (!value || value === optimistic) return;

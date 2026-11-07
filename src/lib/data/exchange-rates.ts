@@ -129,12 +129,10 @@ export async function refreshExchangeRates(
   );
 
   if (rows.length) {
-    const { error } = await supabase
-      .from("exchange_rates")
-      .upsert(rows, {
-        onConflict: "base_currency,quote_currency,rate_date,source",
-        ignoreDuplicates: false,
-      });
+    const { error } = await supabase.from("exchange_rates").upsert(rows, {
+      onConflict: "base_currency,quote_currency,rate_date,source",
+      ignoreDuplicates: false,
+    });
     if (error) throw error;
   }
 

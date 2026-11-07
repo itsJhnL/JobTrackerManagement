@@ -77,18 +77,18 @@ export function UserMenu({ user }: UserMenuProps) {
             align="end"
             sideOffset={8}
           >
-            <DropdownMenuLabel className="font-normal">
-              <div className="grid text-sm leading-tight">
-                <span className="truncate font-medium">{name}</span>
-                {user.email ? (
-                  <span className="truncate text-xs text-muted-foreground">
-                    {user.email}
-                  </span>
-                ) : null}
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
             <DropdownMenuGroup>
+              <DropdownMenuLabel className="font-normal">
+                <div className="grid text-sm leading-tight">
+                  <span className="truncate font-medium">{name}</span>
+                  {user.email ? (
+                    <span className="truncate text-xs text-muted-foreground">
+                      {user.email}
+                    </span>
+                  ) : null}
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
               <DropdownMenuItem render={<Link href="/settings" />}>
                 <UserRound />
                 Profile
@@ -99,13 +99,13 @@ export function UserMenu({ user }: UserMenuProps) {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-muted-foreground">
-              Theme
-            </DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={theme ?? "system"}
               onValueChange={(v) => setTheme(String(v))}
             >
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Theme
+              </DropdownMenuLabel>
               <DropdownMenuRadioItem value="light">
                 <Sun />
                 Light

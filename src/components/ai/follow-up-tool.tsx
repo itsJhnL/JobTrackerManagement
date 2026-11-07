@@ -89,7 +89,7 @@ export function FollowUpTool({
     });
 
   return (
-    <div className="grid gap-4 lg:grid-cols-5">
+    <div className="grid gap-4 *:min-w-0 lg:grid-cols-5">
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle>Follow-up message</CardTitle>
@@ -107,6 +107,10 @@ export function FollowUpTool({
           <Field>
             <FieldLabel>Tone</FieldLabel>
             <Select
+              items={TONES.map((t) => ({
+                value: t,
+                label: t.charAt(0).toUpperCase() + t.slice(1),
+              }))}
               value={tone}
               onValueChange={(v) => v && setTone(v as (typeof TONES)[number])}
             >

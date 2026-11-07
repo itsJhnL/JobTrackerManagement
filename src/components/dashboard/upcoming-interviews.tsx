@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { CalendarClock, CalendarSync, ExternalLink, Inbox, Mail } from "lucide-react";
 
+import { ButtonLink } from "@/components/shared/button-link";
+import { TimeAgo } from "@/components/shared/time-ago";
 import { StatusBadge } from "@/components/applications/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useFormat } from "@/components/timezone-provider";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -19,7 +20,7 @@ import {
 import { INTERVIEW_TYPE_LABELS } from "@/lib/constants";
 import type { InterviewWithApplication } from "@/lib/data/interviews";
 import type { IntegrationSummary } from "@/lib/data/integrations";
-import { dateParts, formatTimeAgo } from "@/lib/format";
+import { dateParts } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface UpcomingInterviewsProps {
@@ -34,14 +35,14 @@ export function UpcomingInterviews({
   const fmt = useFormat();
 
   return (
-    <Card className="h-full">
+    <Card>
       <CardHeader>
         <CardTitle>Upcoming interviews</CardTitle>
         <CardDescription>Shown in {fmt.timeZone.replace(/_/g, " ")}.</CardDescription>
         <CardAction>
-          <Button variant="ghost" size="sm" render={<Link href="/interviews" />}>
+          <ButtonLink href="/interviews" variant="ghost" size="sm">
             View all
-          </Button>
+          </ButtonLink>
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -84,7 +85,7 @@ export function UpcomingInterviews({
                       ) : null}
                     </div>
                     <p className="text-xs text-muted-foreground tabular-nums">
-                      {fmt.time(i.scheduled_at)} · {formatTimeAgo(i.scheduled_at)}
+                      {fmt.time(i.scheduled_at)} · <TimeAgo value={i.scheduled_at} />
                       {i.platform ? ` · ${i.platform}` : ""}
                     </p>
                     <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
@@ -128,18 +129,36 @@ export function UpcomingInterviews({
             ok={integrations.connected && integrations.gmail}
             label="Gmail"
             detail={
-              integrations.connected && integrations.gmail
-                ? `synced ${integrations.lastGmailSyncAt ? formatTimeAgo(integrations.lastGmailSyncAt) : "never"}`
-                : "not connected"
+              integrations.connected && integrations.gmail ? (
+                <>
+                  synced{" "}
+                  {integrations.lastGmailSyncAt ? (
+                    <TimeAgo value={integrations.lastGmailSyncAt} />
+                  ) : (
+                    "never"
+                  )}
+                </>
+              ) : (
+                "not connected"
+              )
             }
           />
           <Row
             ok={integrations.connected && integrations.calendar}
             label="Google Calendar"
             detail={
-              integrations.connected && integrations.calendar
-                ? `synced ${integrations.lastCalendarSyncAt ? formatTimeAgo(integrations.lastCalendarSyncAt) : "never"}`
-                : "not connected"
+              integrations.connected && integrations.calendar ? (
+                <>
+                  synced{" "}
+                  {integrations.lastCalendarSyncAt ? (
+                    <TimeAgo value={integrations.lastCalendarSyncAt} />
+                  ) : (
+                    "never"
+                  )}
+                </>
+              ) : (
+                "not connected"
+              )
             }
           />
           {integrations.lastError ? (
@@ -147,18 +166,14 @@ export function UpcomingInterviews({
           ) : null}
           <div className="mt-1 flex gap-2">
             {integrations.pendingEmails > 0 ? (
-              <Button size="xs" variant="outline" render={<Link href="/inbox" />}>
+              <ButtonLink href="/inbox" size="xs" variant="outline">
                 <Inbox /> {integrations.pendingEmails} email
                 {integrations.pendingEmails === 1 ? "" : "s"} to review
-              </Button>
+              </ButtonLink>
             ) : null}
-            <Button
-              size="xs"
-              variant="ghost"
-              render={<Link href="/settings?tab=integrations" />}
-            >
+            <ButtonLink href="/settings?tab=integrations" size="xs" variant="ghost">
               Manage
-            </Button>
+            </ButtonLink>
           </div>
         </div>
       </CardContent>
@@ -166,7 +181,15 @@ export function UpcomingInterviews({
   );
 }
 
-function Row({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
+function Row({
+  ok,
+  label,
+  detail,
+}: {
+  ok: boolean;
+  label: string;
+  detail: React.ReactNode;
+}) {
   return (
     <p className="flex items-center gap-2">
       <span

@@ -59,7 +59,7 @@ const ICONS: Record<ActivityType, LucideIcon> = {
 
 export function ActivityFeed({ activities }: { activities: ActivityWithApplication[] }) {
   return (
-    <Card className="h-full">
+    <Card>
       <CardHeader>
         <CardTitle>Recent activity</CardTitle>
         <CardDescription>What changed lately.</CardDescription>

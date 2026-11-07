@@ -127,7 +127,7 @@ export function WriterTool({
     });
 
   return (
-    <div className="grid gap-4 lg:grid-cols-5">
+    <div className="grid gap-4 *:min-w-0 lg:grid-cols-5">
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle>Application writer</CardTitle>
@@ -144,7 +144,11 @@ export function WriterTool({
           />
           <Field>
             <FieldLabel>What to write</FieldLabel>
-            <Select value={kind} onValueChange={(v) => v && setKind(v as WriterKind)}>
+            <Select
+              items={KINDS.map((k) => ({ value: k.value, label: k.label }))}
+              value={kind}
+              onValueChange={(v) => v && setKind(v as WriterKind)}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -175,6 +179,10 @@ export function WriterTool({
           <Field>
             <FieldLabel>Tone</FieldLabel>
             <Select
+              items={TONES.map((t) => ({
+                value: t,
+                label: t.charAt(0).toUpperCase() + t.slice(1),
+              }))}
               value={tone}
               onValueChange={(v) => v && setTone(v as (typeof TONES)[number])}
             >

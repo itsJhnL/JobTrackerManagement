@@ -19,8 +19,12 @@ import { DEFAULT_TIMEZONE, isValidTimezone, todayInZone } from "@/lib/timezone";
 
 const currencyFormatters = new Map<string, Intl.NumberFormat>();
 
-function currencyFormatter(currency: string, maximumFractionDigits = 2) {
-  const key = `${currency}:${maximumFractionDigits}`;
+function currencyFormatter(
+  currency: string,
+  maximumFractionDigits = 2,
+  minimumFractionDigits = 0,
+) {
+  const key = `${currency}:${maximumFractionDigits}:${minimumFractionDigits}`;
   let f = currencyFormatters.get(key);
   if (!f) {
     try {
@@ -28,12 +32,12 @@ function currencyFormatter(currency: string, maximumFractionDigits = 2) {
         style: "currency",
         currency,
         maximumFractionDigits,
-        minimumFractionDigits: 0,
+        minimumFractionDigits,
       });
     } catch {
       f = new Intl.NumberFormat("en-US", {
         maximumFractionDigits,
-        minimumFractionDigits: 0,
+        minimumFractionDigits,
       });
     }
     currencyFormatters.set(key, f);
@@ -48,7 +52,11 @@ export function formatMoney(
   opts: { maximumFractionDigits?: number } = {},
 ) {
   if (amount === null || amount === undefined || Number.isNaN(amount)) return "—";
-  return currencyFormatter(currency, opts.maximumFractionDigits ?? 2).format(amount);
+  const max = opts.maximumFractionDigits ?? 2;
+  // Whole amounts stay clean ("$1,732"); anything with cents shows both digits
+  // ("₱31,508.50", never "₱31,508.5").
+  const hasCents = max > 0 && Math.round(Math.abs(amount) * 100) % 100 !== 0;
+  return currencyFormatter(currency, max, hasCents ? Math.min(2, max) : 0).format(amount);
 }
 
 /** "$45/hr", "€4,000/mo", "$2,500 total" */

@@ -3,17 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-export const DETAIL_TABS = [
-  "overview",
-  "application",
-  "compensation",
-  "communication",
-  "interviews",
-  "tasks",
-  "activity",
-] as const;
-export type DetailTab = (typeof DETAIL_TABS)[number];
+import { DETAIL_TABS, parseDetailTab, type DetailTab } from "@/lib/tabs";
 
 const LABELS: Record<DetailTab, string> = {
   overview: "Overview",
@@ -36,8 +26,8 @@ export function DetailTabs({ initialTab, counts, panels }: DetailTabsProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const current = (searchParams.get("tab") as DetailTab | null) ?? initialTab;
-  const value = DETAIL_TABS.includes(current) ? current : "overview";
+  const param = searchParams.get("tab");
+  const value = param ? parseDetailTab(param) : initialTab;
 
   return (
     <Tabs

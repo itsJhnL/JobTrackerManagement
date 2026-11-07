@@ -36,6 +36,10 @@ export function ApplicationPicker({
     <Field className={className}>
       <FieldLabel htmlFor="ai-application">{label}</FieldLabel>
       <Select
+        items={applications.map((a) => ({
+          value: a.id,
+          label: `${a.company_name} · ${a.job_title}`,
+        }))}
         value={value}
         onValueChange={(v) => onChange(v ? String(v) : null)}
         disabled={applications.length === 0}

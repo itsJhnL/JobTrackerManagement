@@ -44,7 +44,7 @@ export function FitAnalyzerTool({
   const canRun = mode === "application" ? !!applicationId : jobText.trim().length >= 40;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-5">
+    <div className="grid gap-4 *:min-w-0 lg:grid-cols-5">
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle>Job fit</CardTitle>

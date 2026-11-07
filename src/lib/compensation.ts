@@ -94,7 +94,16 @@ export function estimateCompensation(input: CompensationInput): CompensationEsti
   const workingDays = isPositiveNumber(input.workingDaysPerWeek)
     ? input.workingDaysPerWeek
     : DEFAULT_WORKING_DAYS_PER_WEEK;
-  const usedDefaults = hours.usedDefault || !isPositiveNumber(input.workingDaysPerWeek);
+  const daysAssumed = !isPositiveNumber(input.workingDaysPerWeek);
+  // Only flag a default when it actually changed the estimate: hourly pay
+  // depends on weekly hours, daily pay on working days, the rest on neither
+  // (their hourly equivalent still uses hours, so those count too).
+  const usedDefaults =
+    input.rateType === "fixed_project"
+      ? false
+      : input.rateType === "daily"
+        ? daysAssumed || hours.usedDefault
+        : hours.usedDefault;
   const assumptions = {
     hoursPerWeek: hours.value,
     workingDaysPerWeek: workingDays,

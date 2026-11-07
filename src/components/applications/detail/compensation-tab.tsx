@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { Info, Pencil } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/shared/button-link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { estimateCompensation, estimateForApplication } from "@/lib/compensation";
 import {
@@ -31,19 +30,15 @@ export function CompensationTab({ application: a }: { application: ApplicationRo
     (a.negotiated_rate ?? a.offered_rate ?? a.proposed_rate ?? 0) < minimum;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div className="grid gap-4 *:min-w-0 lg:grid-cols-3">
       <div className="flex flex-col gap-4 lg:col-span-2">
         <Section
           title="Rates"
           description={`All amounts in ${a.currency}, ${RATE_TYPE_LABELS[a.rate_type].toLowerCase()}.`}
           action={
-            <Button
-              variant="ghost"
-              size="sm"
-              render={<Link href={`/applications/${a.id}/edit`} />}
-            >
+            <ButtonLink href={`/applications/${a.id}/edit`} variant="ghost" size="sm">
               <Pencil data-icon="inline-start" /> Edit
-            </Button>
+            </ButtonLink>
           }
         >
           <div className="grid gap-3 sm:grid-cols-3">

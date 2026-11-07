@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { CircleDollarSign, Info } from "lucide-react";
 
+import { ButtonLink } from "@/components/shared/button-link";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -40,13 +39,9 @@ export function CompensationOverview({ data }: { data: DashboardData["pipeline"]
           per currency; not income.
         </CardDescription>
         <CardAction>
-          <Button
-            variant="ghost"
-            size="sm"
-            render={<Link href="/applications/compare" />}
-          >
+          <ButtonLink href="/applications/compare" variant="ghost" size="sm">
             Compare
-          </Button>
+          </ButtonLink>
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">

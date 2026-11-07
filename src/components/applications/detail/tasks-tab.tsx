@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ClipboardList, ExternalLink, Plus } from "lucide-react";
 
+import { TimeAgo } from "@/components/shared/time-ago";
 import { deleteAssessment } from "@/actions/assessments";
 import { AssessmentFormDialog } from "@/components/assessments/assessment-form";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -12,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ASSESSMENT_STATUS_LABELS, type AssessmentStatus } from "@/lib/constants";
 import type { AssessmentRow } from "@/lib/supabase/database.types";
-import { formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { Section } from "./section";
@@ -106,9 +106,13 @@ export function AssessmentList({
                     : "text-muted-foreground",
                 )}
               >
-                {a.deadline
-                  ? `Due ${fmt.dateTime(a.deadline)} · ${formatTimeAgo(a.deadline)}`
-                  : "No deadline"}
+                {a.deadline ? (
+                  <>
+                    Due {fmt.dateTime(a.deadline)} · <TimeAgo value={a.deadline} />
+                  </>
+                ) : (
+                  "No deadline"
+                )}
               </p>
               {a.description ? (
                 <p className="mt-1 line-clamp-3 text-xs whitespace-pre-wrap text-muted-foreground">

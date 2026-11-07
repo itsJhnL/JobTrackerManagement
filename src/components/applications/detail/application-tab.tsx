@@ -21,7 +21,7 @@ export function ApplicationTab({
   documents,
 }: ApplicationTabProps) {
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div className="grid gap-4 *:min-w-0 lg:grid-cols-3">
       <div className="flex flex-col gap-4 lg:col-span-2">
         <Section
           title="Cover letter"

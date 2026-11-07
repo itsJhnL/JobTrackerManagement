@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   Archive,
   BriefcaseBusiness,
@@ -8,8 +7,8 @@ import {
   Pencil,
 } from "lucide-react";
 
+import { ButtonLink } from "@/components/shared/button-link";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { EMPLOYMENT_TYPE_LABELS } from "@/lib/constants";
 import type { ApplicationRow } from "@/lib/supabase/database.types";
 import { formatDate, formatRate, formatTimeAgo, initials } from "@/lib/format";
@@ -79,14 +78,10 @@ export function DetailHeader({ application: a }: { application: ApplicationRow }
             size="default"
             className="h-8 px-3 text-sm"
           />
-          <Button
-            variant="outline"
-            size="sm"
-            render={<Link href={`/applications/${a.id}/edit`} />}
-          >
+          <ButtonLink href={`/applications/${a.id}/edit`} variant="outline" size="sm">
             <Pencil data-icon="inline-start" />
             Edit
-          </Button>
+          </ButtonLink>
           <ApplicationRowActions
             id={a.id}
             companyName={a.company_name}

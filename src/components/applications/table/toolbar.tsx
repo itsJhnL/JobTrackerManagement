@@ -26,6 +26,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -290,18 +291,20 @@ export function ColumnVisibilityMenu({
         <span className="hidden sm:inline">Columns</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {columns.map((c) => (
-          <DropdownMenuCheckboxItem
-            key={c.id}
-            checked={c.visible}
-            onCheckedChange={(v) => onToggle(c.id, !!v)}
-            closeOnClick={false}
-          >
-            {c.label}
-          </DropdownMenuCheckboxItem>
-        ))}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {columns.map((c) => (
+            <DropdownMenuCheckboxItem
+              key={c.id}
+              checked={c.visible}
+              onCheckedChange={(v) => onToggle(c.id, !!v)}
+              closeOnClick={false}
+            >
+              {c.label}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

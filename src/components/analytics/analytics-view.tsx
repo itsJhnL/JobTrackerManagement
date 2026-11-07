@@ -129,7 +129,7 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-5">
+      <div className="grid gap-4 *:min-w-0 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Applications submitted</CardTitle>
@@ -208,7 +208,7 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 *:min-w-0 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle>By status</CardTitle>
