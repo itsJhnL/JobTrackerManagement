@@ -11,6 +11,7 @@ import { QuickAddButton } from "@/components/applications/quick-add-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { requireUser } from "@/lib/auth";
 import { getDashboardData } from "@/lib/data/dashboard";
+import { listUpcomingCalendarEvents } from "@/lib/data/integrations";
 import { getProfile } from "@/lib/data/profiles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,10 +34,13 @@ export default async function DashboardPage() {
   const user = await requireUser();
   const supabase = await createClient();
   const profile = await getProfile(supabase, user.id);
-  const data = await getDashboardData(supabase, user.id, {
-    displayCurrency: profile.display_currency,
-    timeZone: profile.default_timezone,
-  });
+  const [data, calendarEvents] = await Promise.all([
+    getDashboardData(supabase, user.id, {
+      displayCurrency: profile.display_currency,
+      timeZone: profile.default_timezone,
+    }),
+    listUpcomingCalendarEvents(supabase, user.id, 8),
+  ]);
 
   const firstName = profile.full_name?.split(" ")[0];
   const due = data.followUps.overdue.length + data.followUps.today.length;
@@ -69,6 +73,7 @@ export default async function DashboardPage() {
         <div className="flex min-w-0 flex-col gap-4 lg:col-span-2">
           <UpcomingInterviews
             interviews={data.upcomingInterviews}
+            calendarEvents={calendarEvents}
             integrations={data.integrations}
           />
           <FollowUpsPanel

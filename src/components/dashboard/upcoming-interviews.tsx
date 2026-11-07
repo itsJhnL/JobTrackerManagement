@@ -19,20 +19,33 @@ import {
 } from "@/components/ui/card";
 import { INTERVIEW_TYPE_LABELS } from "@/lib/constants";
 import type { InterviewWithApplication } from "@/lib/data/interviews";
-import type { IntegrationSummary } from "@/lib/data/integrations";
+import type {
+  CalendarEventWithInterview,
+  IntegrationSummary,
+} from "@/lib/data/integrations";
 import { dateParts } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface UpcomingInterviewsProps {
   interviews: InterviewWithApplication[];
+  /** Upcoming events mirrored by Calendar sync. */
+  calendarEvents?: CalendarEventWithInterview[];
   integrations: IntegrationSummary;
 }
 
 export function UpcomingInterviews({
   interviews,
+  calendarEvents = [],
   integrations,
 }: UpcomingInterviewsProps) {
   const fmt = useFormat();
+  // Events already shown as tracked interviews above are not repeated.
+  const shownEventIds = new Set(interviews.map((i) => i.google_event_id).filter(Boolean));
+  const otherEvents = calendarEvents
+    .filter(
+      (e) => !e.interview_id && !shownEventIds.has(e.google_event_id) && e.starts_at,
+    )
+    .slice(0, 5);
 
   return (
     <Card>
@@ -122,6 +135,35 @@ export function UpcomingInterviews({
             })}
           </ul>
         )}
+
+        {otherEvents.length > 0 ? (
+          <div className="flex flex-col gap-1.5 border-t pt-3">
+            <p className="flex items-center gap-1.5 text-xs font-medium">
+              <CalendarSync className="size-3.5" /> Also on your Google Calendar
+            </p>
+            <ul className="flex flex-col gap-1 text-xs">
+              {otherEvents.map((e) => (
+                <li key={e.id} className="flex min-w-0 items-baseline gap-2">
+                  <span className="shrink-0 text-muted-foreground tabular-nums">
+                    {fmt.dateTime(e.starts_at!)}
+                  </span>
+                  {e.html_link ? (
+                    <a
+                      href={e.html_link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="truncate underline-offset-4 hover:underline"
+                    >
+                      {e.summary ?? "(no title)"}
+                    </a>
+                  ) : (
+                    <span className="truncate">{e.summary ?? "(no title)"}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         <div className="flex flex-col gap-1.5 border-t pt-3 text-xs text-muted-foreground">
           <p className="font-medium text-foreground">Integrations</p>
