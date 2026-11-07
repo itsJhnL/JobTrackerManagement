@@ -15,14 +15,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { DashboardData } from "@/lib/data/dashboard";
 import { formatHours, formatMoney } from "@/lib/format";
 
-export function CompensationOverview({ data }: { data: DashboardData["compensation"] }) {
+export function CompensationOverview({ data }: { data: DashboardData["pipeline"] }) {
   const maxBand = Math.max(1, ...data.bands.map((b) => b.count));
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5">
-          Compensation
+          Pipeline potential
           <Tooltip>
             <TooltipTrigger
               render={<span className="inline-flex text-muted-foreground" />}
@@ -36,7 +36,8 @@ export function CompensationOverview({ data }: { data: DashboardData["compensati
           </Tooltip>
         </CardTitle>
         <CardDescription>
-          Active applications only. All figures are estimates.
+          What active applications (applied → offer) could pay if they landed. Estimates
+          per currency; not income.
         </CardDescription>
         <CardAction>
           <Button

@@ -12,11 +12,12 @@ import { StatusBadge } from "../status-badge";
 import { Section } from "./section";
 
 interface ActivityTabProps {
+  timeZone: string;
   statusHistory: ApplicationStatusHistoryRow[];
   activities: ActivityRow[];
 }
 
-export function ActivityTab({ statusHistory, activities }: ActivityTabProps) {
+export function ActivityTab({ timeZone, statusHistory, activities }: ActivityTabProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Section
@@ -48,7 +49,7 @@ export function ActivityTab({ statusHistory, activities }: ActivityTabProps) {
                 ) : null}
                 <p
                   className="mt-0.5 text-xs text-muted-foreground tabular-nums"
-                  title={formatDateTime(h.changed_at)}
+                  title={formatDateTime(h.changed_at, timeZone)}
                 >
                   {formatTimeAgo(h.changed_at)}
                 </p>
@@ -73,7 +74,7 @@ export function ActivityTab({ statusHistory, activities }: ActivityTabProps) {
                 <span>{a.title}</span>
                 <span
                   className="shrink-0 text-xs text-muted-foreground tabular-nums"
-                  title={formatDateTime(a.created_at)}
+                  title={formatDateTime(a.created_at, timeZone)}
                 >
                   {formatTimeAgo(a.created_at)}
                 </span>

@@ -9,12 +9,13 @@ import { ASSESSMENT_STATUS_STYLES } from "@/components/applications/detail/tasks
 import { StatusBadge } from "@/components/applications/status-badge";
 import type { ApplicationOption } from "@/components/interviews/interview-form";
 import { EmptyState } from "@/components/shared/empty-state";
+import { useFormat } from "@/components/timezone-provider";
 import { EntityMenu } from "@/components/shared/entity-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ASSESSMENT_STATUS_LABELS } from "@/lib/constants";
 import type { AssessmentWithApplication } from "@/lib/data/assessments";
-import { formatDateTime, formatTimeAgo } from "@/lib/format";
+import { formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { AssessmentFormDialog } from "./assessment-form";
@@ -108,6 +109,7 @@ function Group({
   onEdit: (a: AssessmentWithApplication) => void;
   emptyText: string;
 }) {
+  const fmt = useFormat();
   return (
     <section className="flex flex-col gap-2">
       <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -158,7 +160,7 @@ function Group({
                     )}
                   >
                     {a.deadline
-                      ? `Due ${formatDateTime(a.deadline)} · ${formatTimeAgo(a.deadline)}`
+                      ? `Due ${fmt.dateTime(a.deadline)} · ${formatTimeAgo(a.deadline)}`
                       : "No deadline"}
                   </p>
                   {a.description ? (

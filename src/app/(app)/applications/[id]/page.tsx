@@ -96,7 +96,11 @@ export default async function ApplicationDetailPage(
           ),
           tasks: <TasksTab applicationId={a.id} assessments={detail.assessments} />,
           activity: (
-            <ActivityTab statusHistory={detail.statusHistory} activities={activities} />
+            <ActivityTab
+              timeZone={profile.default_timezone}
+              statusHistory={detail.statusHistory}
+              activities={activities}
+            />
           ),
         }}
       />

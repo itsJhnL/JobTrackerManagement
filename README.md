@@ -45,6 +45,14 @@ GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
    pnpm dev
    ```
 
+## Exchange rates and income
+
+Hired applications with an active employment record are income. Each job is estimated in its own currency (rate x hours/week x 4.33) and converted to the dashboard currency (PHP by default, Settings -> Preferences) with daily reference rates from the European Central Bank (frankfurter.app) with ExchangeRate-API as fallback. Rates are cached in `exchange_rates` (history kept), refreshed lazily when older than 12 hours, by the daily cron in `vercel.json` (needs `CRON_SECRET` and `SUPABASE_SERVICE_ROLE_KEY`), or manually from the dashboard. The UI always shows the rate date, source and last update; it never labels a daily rate as live.
+
+## Integrations
+
+Settings -> Integrations connects a Google account with read-only Gmail and Calendar-events scopes (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `INTEGRATION_ENCRYPTION_KEY`). Gmail sync classifies recent recruiting mail with the AI provider and queues it in **Inbox** for review; nothing is linked, scheduled or sent without confirmation. Confirming an interview invitation can create the interview and, if you tick it, the Google Calendar event. Calendar sync mirrors upcoming events and reflects reschedules/cancellations on linked interviews.
+
 ## Scripts
 
 | Command | What it does |

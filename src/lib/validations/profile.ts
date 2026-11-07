@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { CURRENCIES } from "@/lib/constants";
+import { isValidTimezone } from "@/lib/timezone";
 
 import { optionalNumber, optionalShortText, optionalText, optionalUrl } from "./common";
 
@@ -34,7 +35,13 @@ export type ProfileInput = z.input<typeof profileSchema>;
 
 export const preferencesSchema = z.object({
   default_currency: z.enum(CURRENCIES).default("USD"),
-  default_timezone: z.string().trim().min(1, "Time zone is required").max(80),
+  display_currency: z.enum(CURRENCIES).default("PHP"),
+  default_timezone: z
+    .string()
+    .trim()
+    .min(1, "Time zone is required")
+    .max(80)
+    .refine((v) => isValidTimezone(v), { message: "Choose a valid IANA time zone" }),
   default_hours_per_week: optionalNumber({ min: 1, max: 168 }).transform((v) => v ?? 40),
   follow_up_intervals: z.object({
     application_days: z.coerce.number().int().min(0).max(60),

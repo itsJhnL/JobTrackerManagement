@@ -28,6 +28,9 @@ export interface AnalyticsData {
   byPlatform: { name: string; count: number }[];
   byEmploymentType: { name: string; count: number }[];
   byStatus: { status: ApplicationStatus; count: number }[];
+  /** Mean days from first 'applied' to first response-type status; null below the sample floor. */
+  avgDaysToResponse: { value: number | null; count: number };
+  months: { month: string; label: string; count: number }[];
   minSample: number;
 }
 
@@ -65,7 +68,7 @@ export async function getAnalytics(
         .is("archived_at", null),
       supabase
         .from("application_status_history")
-        .select("application_id, new_status")
+        .select("application_id, new_status, changed_at")
         .eq("user_id", userId),
     ]);
   if (error) throw error;
@@ -142,8 +145,59 @@ export async function getAnalytics(
       .sort((x, y) => y.count - x.count);
   };
 
+  // Time to first response: first "applied" -> first responded/shortlisted/interview/assessment/offer/hired.
+  const firstApplied = new Map<string, number>();
+  const firstResponse = new Map<string, number>();
+  for (const h of history ?? []) {
+    const t = new Date(h.changed_at).getTime();
+    if (h.new_status === "applied")
+      firstApplied.set(
+        h.application_id,
+        Math.min(firstApplied.get(h.application_id) ?? Infinity, t),
+      );
+    if (RESPONDED.includes(h.new_status))
+      firstResponse.set(
+        h.application_id,
+        Math.min(firstResponse.get(h.application_id) ?? Infinity, t),
+      );
+  }
+  const gaps: number[] = [];
+  for (const [id, applied] of firstApplied) {
+    const responded = firstResponse.get(id);
+    if (responded !== undefined && responded >= applied)
+      gaps.push((responded - applied) / 86_400_000);
+  }
+  const avgDaysToResponse = {
+    value:
+      gaps.length >= MIN_SAMPLE_FOR_RATES
+        ? Math.round((gaps.reduce((a, b) => a + b, 0) / gaps.length) * 10) / 10
+        : null,
+    count: gaps.length,
+  };
+
+  // Applications per calendar month (last 12 months).
+  const monthKeys: string[] = [];
+  for (let i = 11; i >= 0; i--) {
+    monthKeys.push(format(new Date(now.getFullYear(), now.getMonth() - i, 1), "yyyy-MM"));
+  }
+  const monthCounts = new Map(monthKeys.map((k) => [k, 0]));
+  for (const a of submitted) {
+    const d = a.applied_at
+      ? new Date(a.applied_at + "T12:00:00")
+      : new Date(a.created_at);
+    const k = format(d, "yyyy-MM");
+    if (monthCounts.has(k)) monthCounts.set(k, (monthCounts.get(k) ?? 0) + 1);
+  }
+  const months = monthKeys.map((k) => ({
+    month: k,
+    label: format(new Date(k + "-01T12:00:00"), "MMM yy"),
+    count: monthCounts.get(k) ?? 0,
+  }));
+
   return {
     total: rows.length,
+    avgDaysToResponse,
+    months,
     weeks,
     responseRate: rate(reached(RESPONDED), submitted.length),
     interviewRate: rate(reached(INTERVIEWED), submitted.length),

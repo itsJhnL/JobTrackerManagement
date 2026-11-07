@@ -73,7 +73,7 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
   return (
     <div className="flex flex-col gap-4">
       {/* Conversion tiles: the headline is a number, so a stat tile, not a chart. */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
         <RateTile
           label="Response rate"
           metric={data.responseRate}
@@ -92,6 +92,34 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
           min={data.minSample}
           hint="Reached Offer or Hired"
         />
+        <Card size="sm" className="gap-1">
+          <div className="flex items-center justify-between px-3 text-xs text-muted-foreground">
+            <span>Avg. days to response</span>
+            <UiTooltip>
+              <TooltipTrigger render={<span className="inline-flex" />}>
+                <Info className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent>
+                From the day you marked Applied to the first response-type status. Shown
+                once {data.minSample} applications have a response.
+              </TooltipContent>
+            </UiTooltip>
+          </div>
+          <div className="px-3">
+            {data.avgDaysToResponse.value === null ? (
+              <p className="font-heading text-lg font-semibold text-muted-foreground">
+                Not enough data
+              </p>
+            ) : (
+              <p className="font-heading text-2xl font-semibold tabular-nums">
+                {data.avgDaysToResponse.value} days
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {data.avgDaysToResponse.count} with a response
+            </p>
+          </div>
+        </Card>
         <RateTile
           label="Rejection rate"
           metric={data.rejectionRate}
@@ -160,6 +188,10 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
             <DataTable
               rows={data.weeks.map((w) => [w.label, w.count])}
               headers={["Week of", "Submitted"]}
+            />
+            <DataTable
+              rows={data.months.map((mo) => [mo.label, mo.count])}
+              headers={["Month", "Submitted"]}
             />
           </CardContent>
         </Card>

@@ -15,6 +15,7 @@ import {
   toOptions,
 } from "@/components/forms/fields";
 import { FormDialog, FormDialogFooter } from "@/components/forms/form-dialog";
+import { useFormat } from "@/components/timezone-provider";
 import type { ApplicationOption } from "@/components/interviews/interview-form";
 import { ASSESSMENT_STATUSES, ASSESSMENT_STATUS_LABELS } from "@/lib/constants";
 import type { AssessmentRow } from "@/lib/supabase/database.types";
@@ -32,14 +33,6 @@ interface AssessmentFormDialogProps {
   applicationId?: string;
   applications?: ApplicationOption[];
   assessment?: AssessmentRow;
-}
-
-function toLocalInput(iso: string | null | undefined) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export function AssessmentFormDialog(props: AssessmentFormDialogProps) {
@@ -63,6 +56,7 @@ function AssessmentFormInner({
   assessment,
 }: AssessmentFormDialogProps) {
   const router = useRouter();
+  const fmt = useFormat();
   const [pending, start] = useTransition();
   const editing = !!assessment;
 
@@ -73,7 +67,7 @@ function AssessmentFormInner({
           application_id: assessment.application_id,
           title: assessment.title,
           description: assessment.description ?? "",
-          deadline: toLocalInput(assessment.deadline),
+          deadline: fmt.toInput(assessment.deadline),
           status: assessment.status,
           submission_url: assessment.submission_url ?? "",
           notes: assessment.notes ?? "",
@@ -85,7 +79,7 @@ function AssessmentFormInner({
     start(async () => {
       const payload = {
         ...values,
-        deadline: values.deadline ? new Date(values.deadline).toISOString() : null,
+        deadline: values.deadline ? fmt.fromInput(values.deadline) : null,
       };
       const r = editing
         ? await updateAssessment({ id: assessment.id, ...payload })

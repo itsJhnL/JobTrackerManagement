@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { Archive, CalendarDays, ExternalLink, MapPin, Pencil } from "lucide-react";
+import {
+  Archive,
+  BriefcaseBusiness,
+  CalendarDays,
+  ExternalLink,
+  MapPin,
+  Pencil,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +36,21 @@ export function DetailHeader({ application: a }: { application: ApplicationRow }
               <h1 className="font-heading text-xl font-semibold tracking-tight md:text-2xl">
                 {a.company_name}
               </h1>
+              {a.status === "hired" ? (
+                <Badge
+                  variant="outline"
+                  className={
+                    a.employment_active && !a.employment_ended_at
+                      ? "gap-1 border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300"
+                      : "gap-1 text-muted-foreground"
+                  }
+                >
+                  <BriefcaseBusiness />
+                  {a.employment_active && !a.employment_ended_at
+                    ? "Active employment"
+                    : "Employment ended"}
+                </Badge>
+              ) : null}
               {a.archived_at ? (
                 <Badge variant="outline" className="gap-1 text-muted-foreground">
                   <Archive /> Archived

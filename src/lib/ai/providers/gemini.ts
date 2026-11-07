@@ -3,12 +3,14 @@ import type { z } from "zod";
 
 import {
   analyzeFitPrompt,
+  classifyEmailPrompt,
   followUpPrompt,
   interviewPrepPrompt,
   parseJobPrompt,
   writePrompt,
 } from "../prompts";
 import {
+  emailAnalysisSchema,
   fitAnalysisSchema,
   followUpDraftSchema,
   interviewPrepSchema,
@@ -21,6 +23,7 @@ import {
   type AiHealth,
   type AiProvider,
   type ApplicationContext,
+  type EmailInput,
   type ProfileContext,
   type WriterKind,
 } from "../types";
@@ -178,6 +181,10 @@ export class GeminiProvider implements AiProvider {
       usedFallback: model !== this.model,
       latencyMs: Date.now() - started,
     };
+  }
+
+  classifyEmail(email: EmailInput) {
+    return this.generate(classifyEmailPrompt(email), emailAnalysisSchema);
   }
 
   parseJob(jobText: string) {

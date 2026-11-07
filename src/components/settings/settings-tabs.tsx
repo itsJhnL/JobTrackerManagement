@@ -4,12 +4,18 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export const SETTINGS_TABS = ["profile", "preferences", "account"] as const;
+export const SETTINGS_TABS = [
+  "profile",
+  "preferences",
+  "integrations",
+  "account",
+] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 const LABELS: Record<SettingsTab, string> = {
   profile: "Profile",
   preferences: "Preferences",
+  integrations: "Integrations",
   account: "Account",
 };
 

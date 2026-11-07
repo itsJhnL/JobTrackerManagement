@@ -22,6 +22,12 @@ Decisions, conventions, and gotchas that are not obvious from the code. Append; 
 
 - **2026-11-05 — Gemini model availability is key-dependent.** On this key `gemini-2.5-flash` returns 404 ("no longer available to new users") and `gemini-3.7/3.8-flash` were returning 503 "high demand", while `gemini-3.5-flash` answered in ~2 s. Default is therefore `gemini-3.5-flash` with `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite`; the provider retries transient errors once and then falls back. `GET /api/ai/health` (used by Settings → "Test AI connection") verifies key, model and quota.
 
+- **2026-11-06 — Income = hired + `employment_active`.** Migration 0002 adds `employment_active/started_at/ended_at` to applications and `display_currency` (PHP) to profiles. `employmentIncome()` in `src/lib/compensation.ts` computes per-job income in the original currency, converts each job separately via `exchange_rates` (USD-based pairs, append-only history, Frankfurter → ExchangeRate-API fallback) and only then sums. `WEEKS_PER_MONTH` is 4.33 (spec), not 52/12.
+- **2026-11-06 — Time zones.** `profiles.default_timezone` (IANA, picker in Settings) drives every timestamp display through `formatDateTime(value, tz)` / `useFormat()` and every `datetime-local` input through `zonedInputToIso`/`isoToZonedInput`. Storage is UTC. Date-only columns never shift.
+- **2026-11-06 — Client router cache.** `experimental.staleTimes.dynamic = 60` keeps visited pages for a minute so navigating back is instant; every mutation already calls `revalidatePath`/`router.refresh()`. `createClient()` is wrapped in `React.cache` so layout + page share one Supabase client per request.
+- **2026-11-06 — Google integrations are code-complete but untested against real Google credentials.** OAuth (`/api/integrations/google/connect|callback`), AES-GCM token storage, Gmail read-only sync + AI classification + deterministic matching (`src/lib/integrations/matching.ts`, tested), Inbox review flow, Calendar push/sync. Everything requires explicit user confirmation; nothing is sent.
+- **2026-11-06 — Logout is a real `<form action={signOut}>`** submission (hidden form targeted by the menu item) so it works without client JS; `cookies().set` inside the action invalidates the client router cache, and `Cache-Control: private, no-store` is set on every app response so back-navigation after logout re-requests the page.
+
 ## Conventions
 
 - Routes: `src/app/(auth)/*` public, `src/app/(app)/*` protected by `src/app/(app)/layout.tsx` (server-side `requireUser()`).

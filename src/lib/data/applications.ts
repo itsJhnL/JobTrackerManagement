@@ -9,7 +9,11 @@ import type {
   FollowUpRow,
   InterviewRow,
 } from "@/lib/supabase/database.types";
-import { ACTIVE_STATUSES, type ApplicationStatus } from "@/lib/constants";
+import {
+  ACTIVE_STATUSES,
+  APPLICATION_STATUSES,
+  type ApplicationStatus,
+} from "@/lib/constants";
 import type { ScreeningAnswer } from "@/lib/validations/application";
 
 export type Application = ApplicationRow;
@@ -190,18 +194,10 @@ export interface StatusCounts {
 }
 
 export function countByStatus(apps: Pick<ApplicationRow, "status">[]): StatusCounts {
-  const byStatus = {
-    saved: 0,
-    applied: 0,
-    viewed: 0,
-    responded: 0,
-    interview: 0,
-    assessment: 0,
-    offer: 0,
-    hired: 0,
-    rejected: 0,
-    closed: 0,
-  } satisfies Record<ApplicationStatus, number>;
+  const byStatus = Object.fromEntries(APPLICATION_STATUSES.map((s) => [s, 0])) as Record<
+    ApplicationStatus,
+    number
+  >;
   for (const a of apps) byStatus[a.status] += 1;
   const active = ACTIVE_STATUSES.reduce((n, s) => n + byStatus[s], 0);
   return { byStatus, total: apps.length, active };

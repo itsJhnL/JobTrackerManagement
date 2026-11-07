@@ -56,6 +56,34 @@ export const followUpDraftSchema = z.object({
   body: z.string(),
 });
 
+export const emailAnalysisSchema = z.object({
+  kind: z.enum([
+    "application_confirmation",
+    "recruiter_response",
+    "interview_invitation",
+    "interview_reschedule",
+    "job_offer",
+    "rejection",
+    "other_recruiting",
+    "not_recruiting",
+  ]),
+  confidence: z.number().min(0).max(1),
+  company: str,
+  job_title: str,
+  recruiter_name: str,
+  recruiter_email: str,
+  interview_start: str,
+  interview_end: str,
+  interview_timezone: str,
+  interview_platform: str,
+  meeting_url: str,
+  instructions: str,
+  suggested_status: str,
+  summary: z.string(),
+  matched_application_id: str,
+  match_confidence: z.number().min(0).max(1),
+});
+
 export const interviewPrepSchema = z.object({
   likely_questions: strList,
   technical_questions: strList,

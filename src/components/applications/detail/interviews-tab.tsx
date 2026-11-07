@@ -6,6 +6,8 @@ import { CalendarClock, ExternalLink, Plus } from "lucide-react";
 import { deleteInterview } from "@/actions/interviews";
 import { InterviewFormDialog } from "@/components/interviews/interview-form";
 import { EmptyState } from "@/components/shared/empty-state";
+import { useFormat } from "@/components/timezone-provider";
+import { AddToCalendarMenuItem } from "@/components/interviews/calendar-menu-item";
 import { EntityMenu } from "@/components/shared/entity-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +17,7 @@ import {
   type InterviewOutcome,
 } from "@/lib/constants";
 import type { InterviewRow } from "@/lib/supabase/database.types";
-import { formatDateTime, formatTimeAgo } from "@/lib/format";
+import { dateParts, formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { Section } from "./section";
@@ -115,6 +117,7 @@ export function InterviewList({
   muted?: boolean;
   onEdit: (i: InterviewRow) => void;
 }) {
+  const fmt = useFormat();
   return (
     <div className="flex flex-col gap-2">
       {title ? (
@@ -125,63 +128,68 @@ export function InterviewList({
       <ul
         className={cn("flex flex-col divide-y rounded-lg border", muted && "opacity-80")}
       >
-        {items.map((i) => (
-          <li key={i.id} className="flex items-start gap-3 px-3 py-3">
-            <div className="flex w-14 shrink-0 flex-col items-center rounded-md border bg-muted/40 py-1 text-center">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase">
-                {new Date(i.scheduled_at).toLocaleString("en-US", { month: "short" })}
-              </span>
-              <span className="font-heading text-lg leading-tight font-semibold tabular-nums">
-                {new Date(i.scheduled_at).getDate()}
-              </span>
-            </div>
-            <div className="min-w-0 flex-1 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-medium">
-                  {i.title ?? INTERVIEW_TYPE_LABELS[i.interview_type]}
-                </p>
-                <Badge
-                  variant="outline"
-                  className={cn("border-transparent", OUTCOME_STYLES[i.outcome])}
-                >
-                  {INTERVIEW_OUTCOME_LABELS[i.outcome]}
-                </Badge>
+        {items.map((i) => {
+          const parts = dateParts(i.scheduled_at, fmt.timeZone);
+          return (
+            <li key={i.id} className="flex items-start gap-3 px-3 py-3">
+              <div className="flex w-14 shrink-0 flex-col items-center rounded-md border bg-muted/40 py-1 text-center">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase">
+                  {parts.month}
+                </span>
+                <span className="font-heading text-lg leading-tight font-semibold tabular-nums">
+                  {parts.day}
+                </span>
               </div>
-              <p className="text-xs text-muted-foreground tabular-nums">
-                {formatDateTime(i.scheduled_at)}
-                {i.duration_minutes ? ` · ${i.duration_minutes} min` : ""}
-                {i.timezone ? ` · ${i.timezone}` : ""}
-                {" · "}
-                {formatTimeAgo(i.scheduled_at)}
-              </p>
-              <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-                <span>{INTERVIEW_TYPE_LABELS[i.interview_type]}</span>
-                {i.platform ? <span>{i.platform}</span> : null}
-                {i.interviewer ? <span>with {i.interviewer}</span> : null}
-                {i.meeting_url ? (
-                  <a
-                    href={i.meeting_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+              <div className="min-w-0 flex-1 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium">
+                    {i.title ?? INTERVIEW_TYPE_LABELS[i.interview_type]}
+                  </p>
+                  <Badge
+                    variant="outline"
+                    className={cn("border-transparent", OUTCOME_STYLES[i.outcome])}
                   >
-                    <ExternalLink className="size-3" /> Join
-                  </a>
-                ) : null}
-              </p>
-              {i.notes ? (
-                <p className="mt-1.5 line-clamp-4 text-xs whitespace-pre-wrap text-muted-foreground">
-                  {i.notes}
+                    {INTERVIEW_OUTCOME_LABELS[i.outcome]}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {fmt.dateTime(i.scheduled_at)}
+                  {i.duration_minutes ? ` · ${i.duration_minutes} min` : ""}
+                  {i.timezone ? ` · ${i.timezone}` : ""}
+                  {" · "}
+                  {formatTimeAgo(i.scheduled_at)}
                 </p>
-              ) : null}
-            </div>
-            <EntityMenu
-              onEdit={() => onEdit(i)}
-              onDelete={() => deleteInterview(i.id)}
-              deleteTitle="Delete this interview?"
-            />
-          </li>
-        ))}
+                <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                  <span>{INTERVIEW_TYPE_LABELS[i.interview_type]}</span>
+                  {i.platform ? <span>{i.platform}</span> : null}
+                  {i.interviewer ? <span>with {i.interviewer}</span> : null}
+                  {i.meeting_url ? (
+                    <a
+                      href={i.meeting_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+                    >
+                      <ExternalLink className="size-3" /> Join
+                    </a>
+                  ) : null}
+                </p>
+                {i.notes ? (
+                  <p className="mt-1.5 line-clamp-4 text-xs whitespace-pre-wrap text-muted-foreground">
+                    {i.notes}
+                  </p>
+                ) : null}
+              </div>
+              <EntityMenu
+                onEdit={() => onEdit(i)}
+                onDelete={() => deleteInterview(i.id)}
+                deleteTitle="Delete this interview?"
+              >
+                <AddToCalendarMenuItem interviewId={i.id} synced={!!i.google_event_id} />
+              </EntityMenu>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

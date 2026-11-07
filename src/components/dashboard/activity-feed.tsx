@@ -15,6 +15,11 @@ import {
   StickyNote,
   UserPlus,
   AlarmClock,
+  Briefcase,
+  CalendarSync,
+  Mail,
+  Plug,
+  Unplug,
 } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/empty-state";
@@ -45,6 +50,11 @@ const ICONS: Record<ActivityType, LucideIcon> = {
   application_archived: Archive,
   application_restored: ArchiveRestore,
   note_added: StickyNote,
+  employment_updated: Briefcase,
+  email_detected: Mail,
+  calendar_synced: CalendarSync,
+  integration_connected: Plug,
+  integration_disconnected: Unplug,
 };
 
 export function ActivityFeed({ activities }: { activities: ActivityWithApplication[] }) {

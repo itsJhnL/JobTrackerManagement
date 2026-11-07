@@ -98,7 +98,8 @@ export async function completeFollowUp(
 
   try {
     const { user, supabase } = await requireUserForAction();
-    const today = todayDateString();
+    const profile = await getProfile(supabase, user.id);
+    const today = todayDateString(profile.default_timezone);
 
     const { data: current, error: readError } = await supabase
       .from("follow_ups")
@@ -136,7 +137,6 @@ export async function completeFollowUp(
 
     let nextId: string | null = null;
     if (parsed.data.scheduleNext) {
-      const profile = await getProfile(supabase, user.id);
       const due = suggestDueDateString(
         current.follow_up_type,
         new Date(),

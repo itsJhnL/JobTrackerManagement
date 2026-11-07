@@ -34,6 +34,15 @@ What "done" means for this project, in priority order. When two goals conflict, 
 | 5 Productivity | Interviews, assessments, contacts, analytics, CSV export, templates | done (2026-11-05); document upload UI not built |
 | 6 Polish | Responsive, dark mode, a11y, error handling, performance, tests, deploy | partial: loading/error/not-found states, dark mode, keyboard nav done; no e2e tests; not yet run against a live Supabase project |
 
+| 7 Audit round (2026-11-06) | Perf (router cache, request-scoped client), time-zone picker + consistent TZ rendering, logout hardening, employment income with PHP conversion + FX history, new statuses, Google Gmail/Calendar integration layer, Inbox review, cron | done; Google flows untested without credentials |
+
+## Known gaps (as of 2026-11-06)
+
+- Migration `0002_employment_fx_integrations.sql` must be applied to the live project; the app degrades gracefully (no rates, no employment flags) until then.
+- Google OAuth, Gmail sync and Calendar sync are implemented but have not been exercised against real Google credentials.
+- No end-to-end browser tests; email confirmation is enabled on the live project so automated sign-in tests were not possible from this environment.
+- Currency conversion uses daily reference rates (ECB / ExchangeRate-API), not live market quotes; the UI says so.
+
 ## Known gaps (as of 2026-11-05)
 
 - Nothing has been exercised against a real Supabase project or Gemini key yet; the first live run will surface integration issues.

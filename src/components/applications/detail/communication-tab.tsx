@@ -21,6 +21,7 @@ import { ContactFormDialog } from "@/components/contacts/contact-form";
 import { FollowUpActions } from "@/components/follow-ups/follow-up-actions";
 import { FollowUpFormDialog } from "@/components/follow-ups/follow-up-form";
 import { EmptyState } from "@/components/shared/empty-state";
+import { useFormat } from "@/components/timezone-provider";
 import { EntityMenu } from "@/components/shared/entity-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +38,7 @@ import type {
   ContactRow,
   FollowUpRow,
 } from "@/lib/supabase/database.types";
-import { formatDateTime, formatRelativeDay, initials } from "@/lib/format";
+import { formatRelativeDay, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { Section } from "./section";
@@ -57,6 +58,7 @@ export function CommunicationTab({
   communications,
   followUps,
 }: CommunicationTabProps) {
+  const fmt = useFormat();
   const [contactDialog, setContactDialog] = useState<{
     open: boolean;
     contact?: ContactRow;
@@ -187,7 +189,7 @@ export function CommunicationTab({
                           <p className="truncate text-xs text-muted-foreground">
                             {inbound ? "From" : "To"} {contact?.name ?? companyName} ·{" "}
                             {COMMUNICATION_TYPE_LABELS[m.communication_type]} ·{" "}
-                            {formatDateTime(m.communication_date)}
+                            {fmt.dateTime(m.communication_date)}
                           </p>
                         </div>
                       </div>

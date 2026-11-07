@@ -7,6 +7,8 @@ import { CalendarClock, ExternalLink, Plus } from "lucide-react";
 import { deleteInterview } from "@/actions/interviews";
 import { StatusBadge } from "@/components/applications/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { useFormat } from "@/components/timezone-provider";
+import { AddToCalendarMenuItem } from "@/components/interviews/calendar-menu-item";
 import { EntityMenu } from "@/components/shared/entity-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +18,7 @@ import {
   type InterviewOutcome,
 } from "@/lib/constants";
 import type { InterviewWithApplication } from "@/lib/data/interviews";
-import { formatDateTime, formatTimeAgo } from "@/lib/format";
+import { dateParts, formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { InterviewFormDialog, type ApplicationOption } from "./interview-form";
@@ -119,6 +121,7 @@ function Group({
   onEdit: (i: InterviewWithApplication) => void;
   emptyText: string;
 }) {
+  const fmt = useFormat();
   return (
     <section className="flex flex-col gap-2">
       <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -134,15 +137,15 @@ function Group({
           )}
         >
           {items.map((i) => {
-            const d = new Date(i.scheduled_at);
+            const parts = dateParts(i.scheduled_at, fmt.timeZone);
             return (
               <li key={i.id} className="flex items-start gap-3 px-4 py-3">
                 <div className="flex w-14 shrink-0 flex-col items-center rounded-md border bg-muted/40 py-1 text-center">
                   <span className="text-[10px] font-medium text-muted-foreground uppercase">
-                    {d.toLocaleString("en-US", { month: "short" })}
+                    {parts.month}
                   </span>
                   <span className="font-heading text-lg leading-tight font-semibold tabular-nums">
-                    {d.getDate()}
+                    {parts.day}
                   </span>
                 </div>
                 <div className="min-w-0 flex-1 text-sm">
@@ -167,7 +170,7 @@ function Group({
                     {i.application ? <StatusBadge status={i.application.status} /> : null}
                   </div>
                   <p className="text-xs text-muted-foreground tabular-nums">
-                    {formatDateTime(i.scheduled_at)}
+                    {fmt.dateTime(i.scheduled_at)}
                     {i.duration_minutes ? ` · ${i.duration_minutes} min` : ""}
                     {i.timezone ? ` · ${i.timezone}` : ""} ·{" "}
                     {formatTimeAgo(i.scheduled_at)}
@@ -193,7 +196,12 @@ function Group({
                   onDelete={() => deleteInterview(i.id)}
                   deleteTitle="Delete this interview?"
                   size="icon-sm"
-                />
+                >
+                  <AddToCalendarMenuItem
+                    interviewId={i.id}
+                    synced={!!i.google_event_id}
+                  />
+                </EntityMenu>
               </li>
             );
           })}

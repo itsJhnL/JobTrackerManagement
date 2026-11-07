@@ -13,6 +13,7 @@ import { requireUserForAction } from "@/lib/auth";
 import { APPLICATION_STATUS_LABELS } from "@/lib/constants";
 import { logActivity } from "@/lib/data/activities";
 import { suggestDueDateString } from "@/lib/follow-ups";
+import { todayDateString } from "@/lib/format";
 import { getProfile } from "@/lib/data/profiles";
 import type { TablesInsert, TablesUpdate } from "@/lib/supabase/database.types";
 import {
@@ -67,6 +68,9 @@ function toInsert(
     shift: values.shift ?? null,
     benefits: values.benefits ?? null,
     notes: values.notes ?? null,
+    employment_active: values.employment_active ?? true,
+    employment_started_at: values.employment_started_at ?? null,
+    employment_ended_at: values.employment_ended_at ?? null,
   };
 }
 
@@ -188,7 +192,7 @@ export async function updateApplicationStatus(input: unknown): Promise<ActionRes
 
     const { data: before } = await supabase
       .from("applications")
-      .select("status, company_name, applied_at")
+      .select("status, company_name, applied_at, employment_started_at")
       .eq("id", id)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -196,8 +200,11 @@ export async function updateApplicationStatus(input: unknown): Promise<ActionRes
     if (before.status === status) return ok(undefined);
 
     const patch: TablesUpdate<"applications"> = { status };
-    if (status === "applied" && !before.applied_at)
-      patch.applied_at = new Date().toISOString().slice(0, 10);
+    if (status === "hired") {
+      patch.employment_active = true;
+      if (!before.employment_started_at) patch.employment_started_at = todayDateString();
+    }
+    if (status === "applied" && !before.applied_at) patch.applied_at = todayDateString();
 
     const { error } = await supabase
       .from("applications")

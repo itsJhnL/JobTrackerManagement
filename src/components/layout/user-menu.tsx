@@ -45,6 +45,8 @@ export function UserMenu({ user }: UserMenuProps) {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
+        {/* A real form submission so sign-out works without client JS and always clears cookies server-side. */}
+        <form id="sign-out-form" action={signOut} className="hidden" />
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -118,7 +120,10 @@ export function UserMenu({ user }: UserMenuProps) {
               </DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => void signOut()}>
+            <DropdownMenuItem
+              variant="destructive"
+              render={<button type="submit" form="sign-out-form" />}
+            >
               <LogOut />
               Sign out
             </DropdownMenuItem>

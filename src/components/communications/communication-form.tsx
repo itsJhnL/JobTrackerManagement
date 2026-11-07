@@ -15,6 +15,7 @@ import {
   toOptions,
 } from "@/components/forms/fields";
 import { FormDialog, FormDialogFooter } from "@/components/forms/form-dialog";
+import { useFormat } from "@/components/timezone-provider";
 import { COMMUNICATION_TYPES, COMMUNICATION_TYPE_LABELS } from "@/lib/constants";
 import type { CommunicationRow, ContactRow } from "@/lib/supabase/database.types";
 import {
@@ -40,14 +41,6 @@ interface CommunicationFormDialogProps {
   initialSubject?: string;
 }
 
-function toLocalInput(iso: string | null | undefined) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 export function CommunicationFormDialog(props: CommunicationFormDialogProps) {
   const editing = !!props.communication;
   return (
@@ -71,6 +64,7 @@ function CommunicationFormInner({
   initialSubject,
 }: CommunicationFormDialogProps) {
   const router = useRouter();
+  const fmt = useFormat();
   const [pending, start] = useTransition();
   const editing = !!communication;
 
@@ -84,11 +78,11 @@ function CommunicationFormInner({
           direction: communication.direction,
           subject: communication.subject ?? "",
           message: communication.message ?? "",
-          communication_date: toLocalInput(communication.communication_date),
+          communication_date: fmt.toInput(communication.communication_date),
         }
       : {
           ...communicationDefaults(applicationId),
-          communication_date: toLocalInput(new Date().toISOString()),
+          communication_date: fmt.toInput(new Date().toISOString()),
           message: initialMessage ?? "",
           subject: initialSubject ?? "",
         },
@@ -98,7 +92,7 @@ function CommunicationFormInner({
     start(async () => {
       const payload = {
         ...values,
-        communication_date: new Date(values.communication_date).toISOString(),
+        communication_date: fmt.fromInput(values.communication_date),
       };
       const r = editing
         ? await updateCommunication({ id: communication.id, ...payload })

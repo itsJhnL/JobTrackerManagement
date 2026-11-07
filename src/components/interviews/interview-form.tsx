@@ -16,6 +16,7 @@ import {
   toOptions,
 } from "@/components/forms/fields";
 import { FormDialog, FormDialogFooter } from "@/components/forms/form-dialog";
+import { useFormat } from "@/components/timezone-provider";
 import {
   INTERVIEW_OUTCOMES,
   INTERVIEW_OUTCOME_LABELS,
@@ -47,15 +48,6 @@ interface InterviewFormDialogProps {
   defaultTimezone?: string;
 }
 
-/** datetime-local wants "YYYY-MM-DDTHH:mm" in local time. */
-function toLocalInput(iso: string | null | undefined) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 export function InterviewFormDialog(props: InterviewFormDialogProps) {
   const editing = !!props.interview;
   return (
@@ -78,6 +70,7 @@ function InterviewFormInner({
   defaultTimezone,
 }: InterviewFormDialogProps) {
   const router = useRouter();
+  const fmt = useFormat();
   const [pending, start] = useTransition();
   const editing = !!interview;
 
@@ -88,7 +81,7 @@ function InterviewFormInner({
           application_id: interview.application_id,
           title: interview.title ?? "",
           interview_type: interview.interview_type,
-          scheduled_at: toLocalInput(interview.scheduled_at),
+          scheduled_at: fmt.toInput(interview.scheduled_at),
           duration_minutes: interview.duration_minutes ?? "",
           timezone: interview.timezone ?? "",
           platform: interview.platform ?? "",
@@ -108,7 +101,7 @@ function InterviewFormInner({
     start(async () => {
       const payload = {
         ...values,
-        scheduled_at: new Date(values.scheduled_at).toISOString(),
+        scheduled_at: fmt.fromInput(values.scheduled_at),
       };
       const r = editing
         ? await updateInterview({ id: interview.id, ...payload })

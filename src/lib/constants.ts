@@ -8,11 +8,13 @@ export const APPLICATION_STATUSES = [
   "applied",
   "viewed",
   "responded",
+  "shortlisted",
   "interview",
   "assessment",
   "offer",
   "hired",
   "rejected",
+  "withdrawn",
   "closed",
 ] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
@@ -22,11 +24,13 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   applied: "Applied",
   viewed: "Viewed",
   responded: "Responded",
+  shortlisted: "Shortlisted",
   interview: "Interview",
   assessment: "Assessment",
   offer: "Offer",
   hired: "Hired",
   rejected: "Rejected",
+  withdrawn: "Withdrawn",
   closed: "Closed",
 };
 
@@ -36,11 +40,13 @@ export const APPLICATION_STATUS_STYLES: Record<ApplicationStatus, string> = {
   applied: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-transparent",
   viewed: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-transparent",
   responded: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-transparent",
+  shortlisted: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-transparent",
   interview: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-transparent",
   assessment: "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-transparent",
   offer: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-transparent",
   hired: "bg-emerald-600/15 text-emerald-800 dark:text-emerald-200 border-transparent",
   rejected: "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-transparent",
+  withdrawn: "bg-muted text-muted-foreground border-transparent",
   closed: "bg-muted text-muted-foreground border-transparent line-through",
 };
 
@@ -55,11 +61,13 @@ export const APPLICATION_STATUS_COLORS: Record<ApplicationStatus, string> = {
   applied: "#2a78d6",
   viewed: "#eb6834",
   responded: "#1baf7a",
+  shortlisted: "#1baf7a",
   interview: "#eda100",
   assessment: "#e87ba4",
   offer: "#008300",
   hired: "#6250d6",
   rejected: "#e34948",
+  withdrawn: "#a3a29c",
   closed: "#a3a29c",
 };
 
@@ -69,11 +77,13 @@ export const APPLICATION_STATUS_COLORS_DARK: Record<ApplicationStatus, string> =
   applied: "#3987e5",
   viewed: "#d95926",
   responded: "#199e70",
+  shortlisted: "#199e70",
   interview: "#c98500",
   assessment: "#d55181",
   offer: "#008300",
   hired: "#9085e9",
   rejected: "#e66767",
+  withdrawn: "#6f6e69",
   closed: "#6f6e69",
 };
 
@@ -85,6 +95,7 @@ export const ACTIVE_STATUSES: readonly ApplicationStatus[] = [
   "applied",
   "viewed",
   "responded",
+  "shortlisted",
   "interview",
   "assessment",
   "offer",
@@ -93,6 +104,14 @@ export const ACTIVE_STATUSES: readonly ApplicationStatus[] = [
 export const TERMINAL_STATUSES: readonly ApplicationStatus[] = [
   "hired",
   "rejected",
+  "withdrawn",
+  "closed",
+];
+
+/** Statuses that never count toward income or conversion rates. */
+export const EXCLUDED_FROM_INCOME: readonly ApplicationStatus[] = [
+  "rejected",
+  "withdrawn",
   "closed",
 ];
 
@@ -309,6 +328,11 @@ export const ACTIVITY_TYPES = [
   "application_archived",
   "application_restored",
   "note_added",
+  "employment_updated",
+  "email_detected",
+  "calendar_synced",
+  "integration_connected",
+  "integration_disconnected",
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 

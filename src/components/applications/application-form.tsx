@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,6 +28,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   APPLICATION_STATUSES,
@@ -116,6 +117,9 @@ export function applicationToInput(app: ApplicationRow): ApplicationInput {
     shift: app.shift ?? "",
     benefits: app.benefits ?? "",
     notes: app.notes ?? "",
+    employment_active: app.employment_active,
+    employment_started_at: app.employment_started_at ?? "",
+    employment_ended_at: app.employment_ended_at ?? "",
   };
 }
 
@@ -488,6 +492,37 @@ export function ApplicationForm({
             label="Application notes"
             rows={3}
           />
+        </Section>
+      ) : null}
+
+      {watched.status === "hired" ? (
+        <Section
+          title="Employment"
+          description="A hired application is an employment record. Only active records count toward estimated income."
+        >
+          <div className={grid}>
+            <Controller
+              control={c}
+              name="employment_active"
+              render={({ field }) => (
+                <Field orientation="horizontal">
+                  <Switch
+                    id="employment_active"
+                    checked={!!field.value}
+                    onCheckedChange={(v) => field.onChange(!!v)}
+                  />
+                  <FieldLabel htmlFor="employment_active">Active employment</FieldLabel>
+                </Field>
+              )}
+            />
+            <DateField control={c} name="employment_started_at" label="Started on" />
+            <DateField
+              control={c}
+              name="employment_ended_at"
+              label="Ended on"
+              description="Leave empty while ongoing."
+            />
+          </div>
         </Section>
       ) : null}
 

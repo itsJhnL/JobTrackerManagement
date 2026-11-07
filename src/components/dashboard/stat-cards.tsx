@@ -19,8 +19,8 @@ interface StatCardsProps {
 
 export function StatCards({ data }: StatCardsProps) {
   const due = data.followUps.overdue.length + data.followUps.today.length;
-  const primaryIncome = data.compensation.monthlyByCurrency[0];
-  const extraCurrencies = data.compensation.monthlyByCurrency.length - 1;
+  const income = data.income;
+  const activeJobs = income.jobs.length;
 
   const cards = [
     {
@@ -71,14 +71,16 @@ export function StatCards({ data }: StatCardsProps) {
     },
     {
       label: "Est. monthly income",
-      value: primaryIncome
-        ? formatCompact(primaryIncome.monthly, primaryIncome.currency)
-        : "—",
+      value:
+        activeJobs > 0 && income.totalMonthly > 0
+          ? formatCompact(income.totalMonthly, income.displayCurrency)
+          : "—",
       icon: CircleDollarSign,
-      href: "/applications/compare",
-      hint: primaryIncome
-        ? `${primaryIncome.currency} · ${primaryIncome.count} active${extraCurrencies > 0 ? ` · +${extraCurrencies} more ${extraCurrencies === 1 ? "currency" : "currencies"}` : ""}`
-        : "Add rates to see an estimate",
+      href: "/dashboard#income",
+      hint:
+        activeJobs > 0
+          ? `${income.displayCurrency} · ${activeJobs} active job${activeJobs === 1 ? "" : "s"}${income.unconverted.length ? ` · ${income.unconverted.length} unconverted` : ""}`
+          : "From hired, active employment",
       estimate: true,
     },
   ] as const;

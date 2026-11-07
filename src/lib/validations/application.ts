@@ -69,6 +69,11 @@ export const applicationSchema = z.object({
   benefits: optionalText,
 
   notes: optionalText,
+
+  // Employment record (meaningful once status = hired)
+  employment_active: z.boolean().default(true),
+  employment_started_at: optionalDate,
+  employment_ended_at: optionalDate,
 });
 
 export type ApplicationInput = z.input<typeof applicationSchema>;
@@ -140,4 +145,7 @@ export const applicationDefaults: ApplicationInput = {
   shift: "",
   benefits: "",
   notes: "",
+  employment_active: true,
+  employment_started_at: "",
+  employment_ended_at: "",
 };

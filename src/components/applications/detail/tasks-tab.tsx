@@ -6,12 +6,13 @@ import { ClipboardList, ExternalLink, Plus } from "lucide-react";
 import { deleteAssessment } from "@/actions/assessments";
 import { AssessmentFormDialog } from "@/components/assessments/assessment-form";
 import { EmptyState } from "@/components/shared/empty-state";
+import { useFormat } from "@/components/timezone-provider";
 import { EntityMenu } from "@/components/shared/entity-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ASSESSMENT_STATUS_LABELS, type AssessmentStatus } from "@/lib/constants";
 import type { AssessmentRow } from "@/lib/supabase/database.types";
-import { formatDateTime, formatTimeAgo } from "@/lib/format";
+import { formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { Section } from "./section";
@@ -77,6 +78,7 @@ export function AssessmentList({
   items: AssessmentRow[];
   onEdit: (a: AssessmentRow) => void;
 }) {
+  const fmt = useFormat();
   const [now] = useState(() => Date.now());
   return (
     <ul className="flex flex-col divide-y rounded-lg border">
@@ -105,7 +107,7 @@ export function AssessmentList({
                 )}
               >
                 {a.deadline
-                  ? `Due ${formatDateTime(a.deadline)} · ${formatTimeAgo(a.deadline)}`
+                  ? `Due ${fmt.dateTime(a.deadline)} · ${formatTimeAgo(a.deadline)}`
                   : "No deadline"}
               </p>
               {a.description ? (

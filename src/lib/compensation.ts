@@ -1,19 +1,25 @@
 /**
  * Compensation math. One module, unit tested, used everywhere.
  *
- * Monthly estimate rules:
- *   hourly        rate × hours_per_week × 52 / 12
- *   daily         rate × working_days_per_week × 52 / 12
- *   weekly        rate × 52 / 12
+ * Monthly estimate rules (WEEKS_PER_MONTH = 4.33, the convention requested in
+ * the product spec: 10 USD/h × 40 h/wk × 4.33 = 1,732 USD/month):
+ *   hourly        rate × hours_per_week × 4.33
+ *   daily         rate × working_days_per_week × 4.33
+ *   weekly        rate × 4.33
  *   monthly       rate
  *   annual        rate / 12
  *   fixed_project no recurring estimate (one-time amount, shown separately)
  *
- * Rules: preserve the original currency; never add across currencies; label as estimates.
+ * Rules: preserve the original currency; never add across currencies without
+ * converting first; label every number as an estimate.
  */
-import type { RateType } from "@/lib/constants";
+import {
+  EXCLUDED_FROM_INCOME,
+  type ApplicationStatus,
+  type RateType,
+} from "@/lib/constants";
 
-export const WEEKS_PER_MONTH = 52 / 12;
+export const WEEKS_PER_MONTH = 4.33;
 export const DEFAULT_HOURS_PER_WEEK = 40;
 export const DEFAULT_WORKING_DAYS_PER_WEEK = 5;
 
@@ -29,6 +35,8 @@ export interface CompensationInput {
 export interface CompensationEstimate {
   /** Estimated recurring monthly income, or null for one-time/unknown. */
   monthly: number | null;
+  /** Estimated recurring weekly income, or null. */
+  weekly: number | null;
   /** Estimated recurring annual income, or null. */
   annual: number | null;
   /** Equivalent hourly rate (for comparison across rate types), or null. */
@@ -45,6 +53,7 @@ export interface CompensationEstimate {
 
 const EMPTY: CompensationEstimate = {
   monthly: null,
+  weekly: null,
   annual: null,
   hourly: null,
   oneTime: null,
@@ -113,11 +122,13 @@ export function estimateCompensation(input: CompensationInput): CompensationEsti
       return { ...EMPTY, oneTime: rate, assumptions };
   }
 
+  const weekly = monthly / WEEKS_PER_MONTH;
   const annual = monthly * 12;
-  const hourly = hours.value > 0 ? monthly / (hours.value * WEEKS_PER_MONTH) : null;
+  const hourly = hours.value > 0 ? weekly / hours.value : null;
 
   return {
     monthly: round2(monthly),
+    weekly: round2(weekly),
     annual: round2(annual),
     hourly: hourly === null ? null : round2(hourly),
     oneTime: null,
@@ -172,7 +183,7 @@ export function estimateForApplication(app: ApplicationCompensationFields) {
 
 /**
  * Groups monthly estimates by currency. Never sums across currencies.
- * Returns a map of currency → { total, count, hoursPerWeek }.
+ * Returns a map of currency → { monthly, count, hoursPerWeek }.
  */
 export function totalsByCurrency(apps: ApplicationCompensationFields[]) {
   const totals = new Map<
@@ -203,6 +214,130 @@ export function averageHourlyByCurrency(apps: ApplicationCompensationFields[]) {
     acc.set(app.currency, entry);
   }
   return new Map([...acc].map(([c, { sum, count }]) => [c, round2(sum / count)]));
+}
+
+// ---------------------------------------------------------------------------
+// Employment income: only hired + active employment records contribute.
+// ---------------------------------------------------------------------------
+
+export interface EmploymentFields extends ApplicationCompensationFields {
+  id: string;
+  company_name: string;
+  job_title: string;
+  status: ApplicationStatus;
+  employment_active: boolean;
+  employment_ended_at: string | null;
+  archived_at: string | null;
+}
+
+/** True when the record is an active employment that earns recurring income. */
+export function isActiveEmployment(app: EmploymentFields, today?: string) {
+  if (app.status !== "hired") return false;
+  if (!app.employment_active) return false;
+  if (app.archived_at) return false;
+  if (app.employment_ended_at && today && app.employment_ended_at < today) return false;
+  return !EXCLUDED_FROM_INCOME.includes(app.status);
+}
+
+export interface JobIncome {
+  id: string;
+  company_name: string;
+  job_title: string;
+  currency: string;
+  rate: number | null;
+  rateSource: "negotiated" | "offered" | "proposed" | null;
+  rateType: RateType;
+  hoursPerWeek: number;
+  usedDefaults: boolean;
+  /** In the job's own currency. */
+  monthly: number | null;
+  weekly: number | null;
+  oneTime: number | null;
+  /** In the display currency, when a rate was available. */
+  converted: { monthly: number; weekly: number; rate: number; rateDate: string } | null;
+}
+
+export interface ExchangeRateLookup {
+  /** Rate to multiply an amount in `from` to get `to`; null when unknown. */
+  (from: string, to: string): { rate: number; rateDate: string } | null;
+}
+
+/**
+ * Per-job breakdown and the consolidated total in `displayCurrency`.
+ * Each job is calculated in its own currency first and converted separately;
+ * jobs without a rate or without a known exchange rate are listed but excluded
+ * from the consolidated total (and reported in `unconverted`).
+ */
+export function employmentIncome(
+  apps: EmploymentFields[],
+  displayCurrency: string,
+  lookupRate: ExchangeRateLookup,
+  today?: string,
+) {
+  const seen = new Set<string>();
+  const jobs: JobIncome[] = [];
+  for (const app of apps) {
+    if (!isActiveEmployment(app, today)) continue;
+    if (seen.has(app.id)) continue; // never count the same employment twice
+    seen.add(app.id);
+
+    const est = estimateForApplication(app);
+    let converted: JobIncome["converted"] = null;
+    if (est.monthly !== null && est.weekly !== null) {
+      if (app.currency === displayCurrency) {
+        converted = {
+          monthly: est.monthly,
+          weekly: est.weekly,
+          rate: 1,
+          rateDate: today ?? "",
+        };
+      } else {
+        const fx = lookupRate(app.currency, displayCurrency);
+        if (fx)
+          converted = {
+            monthly: round2(est.monthly * fx.rate),
+            weekly: round2(est.weekly * fx.rate),
+            rate: fx.rate,
+            rateDate: fx.rateDate,
+          };
+      }
+    }
+    jobs.push({
+      id: app.id,
+      company_name: app.company_name,
+      job_title: app.job_title,
+      currency: app.currency,
+      rate: effectiveRate(app).rate,
+      rateSource: est.source,
+      rateType: app.rate_type,
+      hoursPerWeek: est.assumptions.hoursPerWeek,
+      usedDefaults: est.assumptions.usedDefaults,
+      monthly: est.monthly,
+      weekly: est.weekly,
+      oneTime: est.oneTime,
+      converted,
+    });
+  }
+
+  const totalMonthly = round2(jobs.reduce((n, j) => n + (j.converted?.monthly ?? 0), 0));
+  const totalWeekly = round2(jobs.reduce((n, j) => n + (j.converted?.weekly ?? 0), 0));
+  const totalHours = jobs.reduce(
+    (n, j) => n + (j.monthly !== null ? j.hoursPerWeek : 0),
+    0,
+  );
+  const unconverted = jobs.filter((j) => j.monthly !== null && j.converted === null);
+  const originals = totalsByCurrency(apps.filter((a) => isActiveEmployment(a, today)));
+
+  return {
+    displayCurrency,
+    jobs,
+    totalMonthly,
+    totalWeekly,
+    totalHours,
+    unconverted,
+    /** Monthly totals per original currency (never summed together). */
+    byCurrency: [...originals].map(([currency, v]) => ({ currency, ...v })),
+  };
 }
 
 /** Rate bands for "applications by compensation range" (equivalent hourly). */

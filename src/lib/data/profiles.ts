@@ -53,6 +53,8 @@ export function normalizeProfile(row: ProfileRow): Profile {
       technologies: Array.isArray(p.technologies) ? p.technologies.map(String) : [],
     })),
     follow_up_intervals: parseIntervals(row.follow_up_intervals),
+    display_currency: row.display_currency ?? "PHP",
+    default_timezone: row.default_timezone || "Asia/Manila",
   };
 }
 

@@ -112,6 +112,50 @@ export class AiError extends Error {
   }
 }
 
+export type EmailKind =
+  | "application_confirmation"
+  | "recruiter_response"
+  | "interview_invitation"
+  | "interview_reschedule"
+  | "job_offer"
+  | "rejection"
+  | "other_recruiting"
+  | "not_recruiting";
+
+/** Structured read of one email, used to match it to an application and to pre-fill an interview. */
+export interface EmailAnalysis {
+  kind: EmailKind;
+  /** 0–1, how sure the model is about `kind`. */
+  confidence: number;
+  company: string | null;
+  job_title: string | null;
+  recruiter_name: string | null;
+  recruiter_email: string | null;
+  /** ISO 8601 with offset when the email states a date/time, else null. */
+  interview_start: string | null;
+  interview_end: string | null;
+  /** IANA zone or abbreviation as written in the email. */
+  interview_timezone: string | null;
+  interview_platform: string | null;
+  meeting_url: string | null;
+  instructions: string | null;
+  /** Status the email implies for the application, if any. */
+  suggested_status: string | null;
+  summary: string;
+}
+
+export interface EmailInput {
+  from_name: string | null;
+  from_email: string | null;
+  subject: string;
+  received_at: string;
+  text: string;
+  /** Candidate applications to match against (company + title only). */
+  candidates: { id: string; company_name: string; job_title: string }[];
+  /** User's zone, so relative dates ("tomorrow 3pm") resolve correctly. */
+  user_timezone: string;
+}
+
 export interface AiHealth {
   provider: string;
   model: string;
@@ -123,6 +167,12 @@ export interface AiProvider {
   readonly name: string;
   /** Cheap round-trip that verifies key, model access and quota. */
   healthCheck(): Promise<AiHealth>;
+  /** Classifies a recruiting email and extracts interview details. */
+  classifyEmail(
+    email: EmailInput,
+  ): Promise<
+    EmailAnalysis & { matched_application_id: string | null; match_confidence: number }
+  >;
   parseJob(jobText: string): Promise<ParsedJob>;
   analyzeFit(jobText: string, profile: ProfileContext): Promise<FitAnalysis>;
   write(

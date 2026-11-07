@@ -46,6 +46,7 @@ export type ProfileRow = {
   default_hours_per_week: number;
   follow_up_intervals: Json;
   ai_provider: string;
+  display_currency: string;
   created_at: string;
   updated_at: string;
 };
@@ -82,6 +83,9 @@ export type ApplicationRow = {
   shift: string | null;
   benefits: string | null;
   notes: string | null;
+  employment_active: boolean;
+  employment_started_at: string | null;
+  employment_ended_at: string | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
@@ -158,6 +162,8 @@ export type InterviewRow = {
   interviewer: string | null;
   notes: string | null;
   outcome: InterviewOutcome;
+  google_event_id: string | null;
+  source: string;
   created_at: string;
   updated_at: string;
 };
@@ -210,6 +216,91 @@ export type ActivityRow = {
   created_at: string;
 };
 
+export type ExchangeRateRow = {
+  id: string;
+  base_currency: string;
+  quote_currency: string;
+  rate: number;
+  rate_date: string;
+  source: string;
+  provider_updated_at: string | null;
+  fetched_at: string;
+};
+
+export type IntegrationProvider = "google";
+export type IntegrationStatus = "connected" | "error" | "revoked";
+
+export type IntegrationAccountRow = {
+  id: string;
+  user_id: string;
+  provider: IntegrationProvider;
+  account_email: string | null;
+  scopes: string[];
+  refresh_token_enc: string | null;
+  access_token_enc: string | null;
+  access_token_expires_at: string | null;
+  status: IntegrationStatus;
+  gmail_history_id: string | null;
+  calendar_sync_token: string | null;
+  last_gmail_sync_at: string | null;
+  last_calendar_sync_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmailClassification =
+  | "application_confirmation"
+  | "recruiter_response"
+  | "interview_invitation"
+  | "interview_reschedule"
+  | "job_offer"
+  | "rejection"
+  | "other_recruiting"
+  | "not_recruiting";
+export type EmailReviewStatus = "pending" | "confirmed" | "dismissed";
+
+export type EmailMessageRow = {
+  id: string;
+  user_id: string;
+  account_id: string;
+  gmail_message_id: string;
+  gmail_thread_id: string | null;
+  from_name: string | null;
+  from_email: string | null;
+  subject: string | null;
+  snippet: string | null;
+  received_at: string | null;
+  classification: EmailClassification | null;
+  confidence: number | null;
+  extracted: Json;
+  application_id: string | null;
+  match_confidence: number | null;
+  review_status: EmailReviewStatus;
+  interview_id: string | null;
+  processed_at: string | null;
+  created_at: string;
+};
+
+export type CalendarEventRow = {
+  id: string;
+  user_id: string;
+  account_id: string;
+  interview_id: string | null;
+  google_event_id: string;
+  google_calendar_id: string;
+  summary: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  timezone: string | null;
+  meeting_url: string | null;
+  html_link: string | null;
+  status: string | null;
+  etag: string | null;
+  synced_at: string;
+  created_at: string;
+};
+
 type Timestamps = "created_at" | "updated_at";
 
 export type Database = {
@@ -256,6 +347,9 @@ export type Database = {
           | "shift"
           | "benefits"
           | "notes"
+          | "employment_active"
+          | "employment_started_at"
+          | "employment_ended_at"
         >;
         Update: Update<ApplicationRow>;
         Relationships: [];
@@ -376,6 +470,8 @@ export type Database = {
           | "interviewer"
           | "notes"
           | "outcome"
+          | "google_event_id"
+          | "source"
         >;
         Update: Update<InterviewRow>;
         Relationships: [
@@ -454,6 +550,116 @@ export type Database = {
           },
         ];
       };
+      exchange_rates: {
+        Row: Row<ExchangeRateRow>;
+        Insert: Insert<ExchangeRateRow, "id" | "fetched_at" | "provider_updated_at">;
+        Update: Update<ExchangeRateRow>;
+        Relationships: [];
+      };
+      integration_accounts: {
+        Row: Row<IntegrationAccountRow>;
+        Insert: Insert<
+          IntegrationAccountRow,
+          | "id"
+          | Timestamps
+          | "provider"
+          | "account_email"
+          | "scopes"
+          | "refresh_token_enc"
+          | "access_token_enc"
+          | "access_token_expires_at"
+          | "status"
+          | "gmail_history_id"
+          | "calendar_sync_token"
+          | "last_gmail_sync_at"
+          | "last_calendar_sync_at"
+          | "last_error"
+        >;
+        Update: Update<IntegrationAccountRow>;
+        Relationships: [];
+      };
+      email_messages: {
+        Row: Row<EmailMessageRow>;
+        Insert: Insert<
+          EmailMessageRow,
+          | "id"
+          | "created_at"
+          | "gmail_thread_id"
+          | "from_name"
+          | "from_email"
+          | "subject"
+          | "snippet"
+          | "received_at"
+          | "classification"
+          | "confidence"
+          | "extracted"
+          | "application_id"
+          | "match_confidence"
+          | "review_status"
+          | "interview_id"
+          | "processed_at"
+        >;
+        Update: Update<EmailMessageRow>;
+        Relationships: [
+          {
+            foreignKeyName: "email_messages_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "integration_accounts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "email_messages_application_id_fkey";
+            columns: ["application_id"];
+            isOneToOne: false;
+            referencedRelation: "applications";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "email_messages_interview_id_fkey";
+            columns: ["interview_id"];
+            isOneToOne: false;
+            referencedRelation: "interviews";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      calendar_events: {
+        Row: Row<CalendarEventRow>;
+        Insert: Insert<
+          CalendarEventRow,
+          | "id"
+          | "created_at"
+          | "synced_at"
+          | "interview_id"
+          | "google_calendar_id"
+          | "summary"
+          | "starts_at"
+          | "ends_at"
+          | "timezone"
+          | "meeting_url"
+          | "html_link"
+          | "status"
+          | "etag"
+        >;
+        Update: Update<CalendarEventRow>;
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "integration_accounts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "calendar_events_interview_id_fkey";
+            columns: ["interview_id"];
+            isOneToOne: false;
+            referencedRelation: "interviews";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -471,6 +677,10 @@ export type Database = {
       communication_direction: CommunicationDirection;
       document_type: DocumentType;
       activity_type: ActivityType;
+      integration_provider: IntegrationProvider;
+      integration_status: IntegrationStatus;
+      email_classification: EmailClassification;
+      email_review_status: EmailReviewStatus;
     };
     CompositeTypes: Record<string, never>;
   };

@@ -10,6 +10,7 @@ import {
   Sparkles,
   Users,
   BellRing,
+  Inbox,
 } from "lucide-react";
 
 export interface NavItem {
@@ -46,6 +47,12 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/follow-ups",
         icon: BellRing,
         hint: "Due, overdue and upcoming",
+      },
+      {
+        title: "Inbox",
+        href: "/inbox",
+        icon: Inbox,
+        hint: "Recruiting emails to review",
       },
       {
         title: "Interviews",
@@ -105,6 +112,8 @@ export const SEGMENT_TITLES: Record<string, string> = {
   dashboard: "Dashboard",
   applications: "Applications",
   "follow-ups": "Follow-ups",
+  inbox: "Inbox",
+  integrations: "Integrations",
   interviews: "Interviews",
   assessments: "Assessments",
   contacts: "Contacts",

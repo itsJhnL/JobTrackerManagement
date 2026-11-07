@@ -3,8 +3,10 @@ import type { Metadata } from "next";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { CompensationOverview } from "@/components/dashboard/compensation-overview";
 import { FollowUpsPanel } from "@/components/dashboard/follow-ups-panel";
+import { IncomeOverview } from "@/components/dashboard/income-overview";
 import { Pipeline } from "@/components/dashboard/pipeline";
 import { StatCards } from "@/components/dashboard/stat-cards";
+import { UpcomingInterviews } from "@/components/dashboard/upcoming-interviews";
 import { QuickAddButton } from "@/components/applications/quick-add-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { requireUser } from "@/lib/auth";
@@ -14,28 +16,36 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
+function greeting(timeZone: string) {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "numeric",
+      hourCycle: "h23",
+    }).format(new Date()),
+  );
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
   return "Good evening";
 }
 
 export default async function DashboardPage() {
   const user = await requireUser();
   const supabase = await createClient();
-  const [data, profile] = await Promise.all([
-    getDashboardData(supabase, user.id),
-    getProfile(supabase, user.id),
-  ]);
+  const profile = await getProfile(supabase, user.id);
+  const data = await getDashboardData(supabase, user.id, {
+    displayCurrency: profile.display_currency,
+    timeZone: profile.default_timezone,
+  });
 
   const firstName = profile.full_name?.split(" ")[0];
   const due = data.followUps.overdue.length + data.followUps.today.length;
+  const hello = greeting(profile.default_timezone);
 
   return (
     <>
       <PageHeader
-        title={firstName ? `${greeting()}, ${firstName}` : greeting()}
+        title={firstName ? `${hello}, ${firstName}` : hello}
         description={
           data.counts.total === 0
             ? "Add your first application to get started."
@@ -50,10 +60,17 @@ export default async function DashboardPage() {
 
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="flex flex-col gap-4 lg:col-span-3">
+          <div id="income" className="scroll-mt-20">
+            <IncomeOverview income={data.income} rates={data.rates} />
+          </div>
           <Pipeline byStatus={data.counts.byStatus} total={data.counts.total} />
-          <CompensationOverview data={data.compensation} />
+          <CompensationOverview data={data.pipeline} />
         </div>
         <div className="flex flex-col gap-4 lg:col-span-2">
+          <UpcomingInterviews
+            interviews={data.upcomingInterviews}
+            integrations={data.integrations}
+          />
           <FollowUpsPanel
             overdue={data.followUps.overdue}
             today={data.followUps.today}

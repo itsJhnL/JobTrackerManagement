@@ -1,4 +1,4 @@
-import type { ApplicationContext, ProfileContext, WriterKind } from "./types";
+import type { ApplicationContext, EmailInput, ProfileContext, WriterKind } from "./types";
 
 /**
  * Prompt builders. Provider-agnostic: they return plain system/user strings.
@@ -130,4 +130,18 @@ export const interviewPrepPrompt = (
 ${GROUNDING_RULE}
 Produce 6-8 likely questions, 5-8 technical questions tied to the job description, 5 behavioral questions, 4-6 suggested answers in first person based only on the profile (each with "based_on" listing the profile facts used), and 5 thoughtful questions to ask the employer.`,
   user: [profileBlock(profile), applicationBlock(app)].join("\n\n"),
+});
+
+export const classifyEmailPrompt = (email: EmailInput) => ({
+  system: `You read one email received by a job seeker and decide whether it is recruiting-related.
+Classify "kind" as one of: application_confirmation, recruiter_response, interview_invitation, interview_reschedule, job_offer, rejection, other_recruiting, not_recruiting.
+Newsletters, job alerts, marketing and platform notifications that are not about one of the user's own applications are not_recruiting.
+Extract only what the email states. Dates: resolve to ISO 8601 with a UTC offset using the user's time zone (${email.user_timezone}) for relative or zone-less times; null when no date is given.
+"suggested_status" is one of applied, viewed, responded, shortlisted, interview, assessment, offer, hired, rejected, or null.
+Match the email to one of the CANDIDATE APPLICATIONS by company and role; set matched_application_id to its id or null, and match_confidence 0-1. Never invent an id.
+Return only the JSON object.`,
+  user: [
+    `## CANDIDATE APPLICATIONS\n${email.candidates.map((c) => `- id=${c.id} · ${c.company_name} · ${c.job_title}`).join("\n") || "(none)"}`,
+    `## EMAIL\nFrom: ${email.from_name ?? ""} <${email.from_email ?? ""}>\nSubject: ${email.subject}\nReceived: ${email.received_at}\n\n${email.text.slice(0, 6000)}`,
+  ].join("\n\n"),
 });

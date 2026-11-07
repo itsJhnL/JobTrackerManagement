@@ -11,6 +11,7 @@ import {
   APPLICATION_STATUSES,
   APPLICATION_STATUS_COLORS,
   APPLICATION_STATUS_LABELS,
+  TERMINAL_STATUSES,
   type ApplicationStatus,
 } from "@/lib/constants";
 
@@ -20,8 +21,10 @@ interface PipelineProps {
 }
 
 export function Pipeline({ byStatus, total }: PipelineProps) {
-  const funnel = APPLICATION_STATUSES.filter((s) => s !== "rejected" && s !== "closed");
-  const terminal: ApplicationStatus[] = ["rejected", "closed"];
+  const funnel = APPLICATION_STATUSES.filter(
+    (s) => !TERMINAL_STATUSES.includes(s) || s === "hired",
+  );
+  const terminal: ApplicationStatus[] = ["rejected", "withdrawn", "closed"];
   const max = Math.max(1, ...funnel.map((s) => byStatus[s]));
 
   return (

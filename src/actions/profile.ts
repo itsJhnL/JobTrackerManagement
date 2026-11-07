@@ -16,6 +16,7 @@ import { preferencesSchema, profileSchema } from "@/lib/validations/profile";
 function revalidate() {
   revalidatePath("/", "layout");
   revalidatePath("/settings");
+  revalidatePath("/dashboard");
   revalidatePath("/ai");
 }
 
@@ -57,6 +58,7 @@ export async function updatePreferences(input: unknown): Promise<ActionResult> {
       .from("profiles")
       .update({
         default_currency: v.default_currency,
+        display_currency: v.display_currency,
         default_timezone: v.default_timezone,
         default_hours_per_week: v.default_hours_per_week,
         follow_up_intervals: v.follow_up_intervals as unknown as Json,

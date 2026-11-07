@@ -9,7 +9,11 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 
 import { updatePreferences } from "@/actions/profile";
-import { NumberField, SelectField, TextField } from "@/components/forms/fields";
+import { Controller } from "react-hook-form";
+
+import { NumberField, SelectField } from "@/components/forms/fields";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import { TimezonePicker } from "./timezone-picker";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,7 +22,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CURRENCIES } from "@/lib/constants";
 import type { Profile } from "@/lib/data/profiles";
@@ -39,6 +42,11 @@ export function PreferencesForm({ profile }: { profile: Profile }) {
       )
         ? (profile.default_currency as PreferencesInput["default_currency"])
         : "USD",
+      display_currency: (CURRENCIES as readonly string[]).includes(
+        profile.display_currency,
+      )
+        ? (profile.display_currency as PreferencesInput["display_currency"])
+        : "PHP",
       default_timezone: profile.default_timezone,
       default_hours_per_week: profile.default_hours_per_week,
       follow_up_intervals: profile.follow_up_intervals,
@@ -74,12 +82,32 @@ export function PreferencesForm({ profile }: { profile: Profile }) {
             label="Currency"
             options={currencyOptions}
           />
-          <TextField
+          <SelectField
+            control={c}
+            name="display_currency"
+            label="Dashboard currency"
+            options={currencyOptions}
+            description="Income from every job is converted into this currency for the consolidated view."
+          />
+          <Controller
             control={c}
             name="default_timezone"
-            label="Working time zone"
-            placeholder="Asia/Manila"
-            required
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid || undefined}>
+                <FieldLabel htmlFor="default_timezone">
+                  Working time zone <span className="text-destructive">*</span>
+                </FieldLabel>
+                <TimezonePicker
+                  id="default_timezone"
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+                <FieldDescription>
+                  Dates, interviews and reminders are shown in this zone. Stored in UTC.
+                </FieldDescription>
+                <FieldError errors={fieldState.error ? [fieldState.error] : undefined} />
+              </Field>
+            )}
           />
           <NumberField
             control={c}
