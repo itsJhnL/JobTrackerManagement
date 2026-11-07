@@ -10,7 +10,6 @@ import {
   ok,
   type ActionResult,
 } from "@/lib/action-result";
-import { getAiProvider } from "@/lib/ai";
 import { AiError } from "@/lib/ai/types";
 import { requireUserForAction } from "@/lib/auth";
 import {
@@ -19,15 +18,10 @@ import {
   APPLICATION_STATUSES,
 } from "@/lib/constants";
 import { logActivity } from "@/lib/data/activities";
-import { getProfile } from "@/lib/data/profiles";
 import { getGoogleAccount } from "@/lib/integrations/google/client";
 import { decryptSecret } from "@/lib/integrations/google/crypto";
 import { GoogleAuthError, revokeToken } from "@/lib/integrations/google/oauth";
-import {
-  pushInterviewToCalendar,
-  syncCalendar,
-  syncGmail,
-} from "@/lib/integrations/google/sync";
+import { pushInterviewToCalendar } from "@/lib/integrations/google/sync";
 import { uuid } from "@/lib/validations/common";
 
 function revalidate() {
@@ -75,56 +69,6 @@ export async function disconnectGoogle(): Promise<ActionResult> {
     return ok(undefined);
   } catch (e) {
     return fromUnknownError(e);
-  }
-}
-
-export async function runGmailSync(): Promise<
-  ActionResult<{ scanned: number; stored: number; recruiting: number; errors: string[] }>
-> {
-  try {
-    const { user, supabase } = await requireUserForAction();
-    const account = await getGoogleAccount(supabase, user.id);
-    if (!account || account.status === "revoked")
-      return fail("Connect your Google account first.");
-    if (!account.scopes.some((s) => s.includes("gmail")))
-      return fail("Gmail access was not granted. Reconnect and allow Gmail read access.");
-    const profile = await getProfile(supabase, user.id);
-    const result = await syncGmail(
-      supabase,
-      user.id,
-      account,
-      getAiProvider(),
-      profile.default_timezone,
-    );
-    revalidate();
-    return ok({
-      scanned: result.scanned,
-      stored: result.stored,
-      recruiting: result.recruiting,
-      errors: result.errors,
-    });
-  } catch (e) {
-    return fail(describe(e));
-  }
-}
-
-export async function runCalendarSync(): Promise<
-  ActionResult<{ fetched: number; upserted: number; cancelled: number }>
-> {
-  try {
-    const { user, supabase } = await requireUserForAction();
-    const account = await getGoogleAccount(supabase, user.id);
-    if (!account || account.status === "revoked")
-      return fail("Connect your Google account first.");
-    if (!account.scopes.some((s) => s.includes("calendar")))
-      return fail(
-        "Calendar access was not granted. Reconnect and allow Calendar access.",
-      );
-    const result = await syncCalendar(supabase, user.id, account);
-    revalidate();
-    return ok(result);
-  } catch (e) {
-    return fail(describe(e));
   }
 }
 

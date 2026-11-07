@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { AiProvider } from "@/lib/ai/types";
+import { AiError, type AiProvider } from "@/lib/ai/types";
 import { logActivity } from "@/lib/data/activities";
 import type { SupabaseServerClient } from "@/lib/supabase/server";
 import type {
@@ -22,11 +22,23 @@ import { AUTO_LINK_CONFIDENCE, matchEmailToApplication } from "../matching";
 
 export interface GmailSyncResult {
   scanned: number;
+  /** New messages found this run (not yet stored). */
+  fresh: number;
   stored: number;
   recruiting: number;
   skippedExisting: number;
+  /** New messages left for the next run because the time budget ran out. */
+  remaining: number;
+  /**
+   * Set when the AI provider was overloaded or rate limited. The run stops early;
+   * unprocessed emails are not stored, so the next sync picks them up.
+   */
+  aiUnavailable: string | null;
   errors: string[];
 }
+
+/** Messages classified at once. Keeps Gemini under typical per-minute limits. */
+const GMAIL_CONCURRENCY = 4;
 
 /**
  * Pulls recent recruiting-looking messages, classifies new ones with the AI
@@ -39,13 +51,22 @@ export async function syncGmail(
   account: IntegrationAccountRow,
   ai: AiProvider,
   userTimezone: string,
-  options: { newerThanDays?: number; maxMessages?: number } = {},
+  options: {
+    newerThanDays?: number;
+    maxMessages?: number;
+    /** Stop starting new messages after this many ms; the rest are reported as `remaining`. */
+    budgetMs?: number;
+  } = {},
 ): Promise<GmailSyncResult> {
+  const deadline = Date.now() + (options.budgetMs ?? Number.POSITIVE_INFINITY);
   const result: GmailSyncResult = {
     scanned: 0,
+    fresh: 0,
     stored: 0,
     recruiting: 0,
     skippedExisting: 0,
+    remaining: 0,
+    aiUnavailable: null,
     errors: [],
   };
   const token = await getAccessToken(supabase, account);
@@ -74,6 +95,7 @@ export async function syncGmail(
   const known = new Set((existing ?? []).map((e) => e.gmail_message_id));
   const fresh = summaries.filter((m) => !known.has(m.id));
   result.skippedExisting = summaries.length - fresh.length;
+  result.fresh = fresh.length;
 
   const { data: apps } = await supabase
     .from("applications")
@@ -90,7 +112,7 @@ export async function syncGmail(
     domains: domainFromUrl(a.job_url),
   }));
 
-  for (const summary of fresh) {
+  const processOne = async (summary: (typeof fresh)[number]) => {
     try {
       const msg = await getMessage(token, summary.id);
       const analysis = await ai.classifyEmail({
@@ -170,13 +192,36 @@ export async function syncGmail(
         });
       }
     } catch (e) {
+      if (e instanceof AiError && e.retryable) {
+        // Busy or rate limited after retries: stop starting new emails instead of
+        // hammering the provider. This email stays unstored and is retried next sync.
+        result.aiUnavailable ??= e.message;
+        return;
+      }
       result.errors.push(`${summary.id}: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }
+  };
+
+  // Small worker pool: each email needs a Gmail fetch and an AI call, so running
+  // them one by one made a full sync take minutes.
+  let next = 0;
+  const worker = async () => {
+    while (next < fresh.length && Date.now() < deadline && !result.aiUnavailable) {
+      await processOne(fresh[next++]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(GMAIL_CONCURRENCY, fresh.length) }, worker),
+  );
+  result.remaining = fresh.length - next;
 
   await touch(supabase, account.id, {
     last_gmail_sync_at: new Date().toISOString(),
-    last_error: result.errors.length ? result.errors.slice(0, 3).join(" | ") : null,
+    last_error: result.aiUnavailable
+      ? `The AI was busy, so ${fresh.length - result.stored} new email(s) were not checked yet. Sync again in a few minutes.`
+      : result.errors.length
+        ? `${result.errors.length} email(s) could not be processed: ${result.errors[0].replace(/^[^:]+: /, "")}`
+        : null,
     status: "connected",
   });
   return result;
@@ -255,24 +300,26 @@ export async function syncCalendar(
   }
 
   // Reflect rescheduling/cancellation on linked interviews.
-  for (const r of rows) {
-    if (!r.interview_id) continue;
-    if (r.status === "cancelled") {
-      await supabase
-        .from("interviews")
-        .update({ outcome: "cancelled" })
-        .eq("id", r.interview_id)
-        .eq("user_id", userId)
-        .eq("outcome", "pending");
-    } else if (r.starts_at) {
-      await supabase
-        .from("interviews")
-        .update({ scheduled_at: r.starts_at, meeting_url: r.meeting_url ?? undefined })
-        .eq("id", r.interview_id)
-        .eq("user_id", userId)
-        .neq("scheduled_at", r.starts_at);
-    }
-  }
+  await Promise.all(
+    rows.map(async (r) => {
+      if (!r.interview_id) return;
+      if (r.status === "cancelled") {
+        await supabase
+          .from("interviews")
+          .update({ outcome: "cancelled" })
+          .eq("id", r.interview_id)
+          .eq("user_id", userId)
+          .eq("outcome", "pending");
+      } else if (r.starts_at) {
+        await supabase
+          .from("interviews")
+          .update({ scheduled_at: r.starts_at, meeting_url: r.meeting_url ?? undefined })
+          .eq("id", r.interview_id)
+          .eq("user_id", userId)
+          .neq("scheduled_at", r.starts_at);
+      }
+    }),
+  );
 
   await touch(supabase, account.id, {
     last_calendar_sync_at: new Date().toISOString(),

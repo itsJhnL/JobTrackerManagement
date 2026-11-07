@@ -38,6 +38,7 @@ Decisions, conventions, and gotchas that are not obvious from the code. Append; 
 - **Relative times** in client components go through `<TimeAgo>`; `formatTimeAgo` changes every second and otherwise causes hydration mismatches.
 - **Redirect targets** (`next` param) go through `safeNextPath()`; it keeps the query string and rejects `//host` and `/\host`.
 - **Absolute links back to the app** (auth email `redirectTo`, Google OAuth `redirect_uri`) use `getSiteUrl()` in `src/lib/site-url.ts`, which reads the request host. `NEXT_PUBLIC_SITE_URL` is only a fallback, so a localhost value in `.env.local` can no longer leak into production links. Each origin must still be allowlisted in Supabase (Auth > URL Configuration) and in Google Cloud (Authorized redirect URIs).
+- **Google syncs run through `POST /api/integrations/google/sync`, not server actions.** The App Router holds navigation until a running server action finishes, so a long sync froze every link. The browser calls the route with `fetch` via `startGoogleSync()` in `src/components/integrations/google-sync.ts`. Gmail is processed 4 emails at a time in roughly 25-second batches; the client repeats until `remaining` is 0, and stops if a batch makes no progress.
 - **E2E QA** was run with a throwaway user created via the service-role admin API (`email_confirm: true`) and deleted afterwards (cascade removes its rows). Never reuse a real account for automated tests.
 
 ## Conventions

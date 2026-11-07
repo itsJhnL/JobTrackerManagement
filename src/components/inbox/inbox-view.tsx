@@ -7,7 +7,11 @@ import { CalendarPlus, Check, Inbox, Mail, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { ButtonLink } from "@/components/shared/button-link";
-import { confirmEmail, dismissEmail, runGmailSync } from "@/actions/integrations";
+import { confirmEmail, dismissEmail } from "@/actions/integrations";
+import {
+  startGoogleSync,
+  useGoogleSyncStatus,
+} from "@/components/integrations/google-sync";
 import { StatusBadge } from "@/components/applications/status-badge";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -87,17 +91,8 @@ export function InboxView({
     dismissed: emails.filter((e) => e.review_status === "dismissed"),
   };
 
-  const sync = () =>
-    start(async () => {
-      const r = await runGmailSync();
-      if (!r.ok) toast.error(r.error);
-      else {
-        toast.success(
-          `Scanned ${r.data.scanned}, ${r.data.recruiting} new recruiting email${r.data.recruiting === 1 ? "" : "s"}`,
-        );
-        router.refresh();
-      }
-    });
+  const syncing = useGoogleSyncStatus().gmail;
+  const sync = () => startGoogleSync("gmail", () => router.refresh());
 
   const dismiss = (id: string) =>
     start(async () => {
@@ -115,8 +110,9 @@ export function InboxView({
             : "Connect Gmail in Settings → Integrations to detect recruiting emails automatically."}
         </p>
         {gmailReady ? (
-          <Button size="sm" variant="outline" onClick={sync} disabled={pending}>
-            <RefreshCw className={cn(pending && "animate-spin")} /> Sync Gmail
+          <Button size="sm" variant="outline" onClick={sync} disabled={syncing}>
+            <RefreshCw className={cn(syncing && "animate-spin")} />{" "}
+            {syncing ? "Syncing�" : "Sync Gmail"}
           </Button>
         ) : (
           <ButtonLink href="/settings?tab=integrations" size="sm">

@@ -87,7 +87,7 @@ export class GeminiProvider implements AiProvider {
 
   /**
    * Runs a prompt against the primary model with one retry on transient
-   * errors, then the fallback model. Returns the raw text and the model used.
+   * errors, then the fallback model (also retried once). Returns the raw text and the model used.
    */
   private async generateText(
     prompt: { system?: string; user: string },
@@ -97,7 +97,11 @@ export class GeminiProvider implements AiProvider {
       { model: this.model, attempt: 1 },
       { model: this.model, attempt: 2 },
     ];
-    if (this.fallbackModel) plan.push({ model: this.fallbackModel, attempt: 1 });
+    if (this.fallbackModel)
+      plan.push(
+        { model: this.fallbackModel, attempt: 1 },
+        { model: this.fallbackModel, attempt: 2 },
+      );
 
     let lastError: AiError | null = null;
     for (let i = 0; i < plan.length; i++) {
@@ -120,7 +124,9 @@ export class GeminiProvider implements AiProvider {
           }
           throw err;
         }
-        if (i < plan.length - 1) await sleep(step.attempt === 1 ? 1500 : 500);
+        // Back off with jitter so parallel callers don't retry in lockstep.
+        if (i < plan.length - 1)
+          await sleep((step.attempt === 1 ? 1500 : 800) + Math.random() * 1000);
       }
     }
     throw lastError ?? new AiError("provider_error", "AI provider error.", true);

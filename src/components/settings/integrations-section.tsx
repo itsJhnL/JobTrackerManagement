@@ -5,7 +5,11 @@ import { useTransition } from "react";
 import { CalendarSync, Mail, Plug, RefreshCw, Unplug } from "lucide-react";
 import { toast } from "sonner";
 
-import { disconnectGoogle, runCalendarSync, runGmailSync } from "@/actions/integrations";
+import { disconnectGoogle } from "@/actions/integrations";
+import {
+  startGoogleSync,
+  useGoogleSyncStatus,
+} from "@/components/integrations/google-sync";
 import { useFormat } from "@/components/timezone-provider";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -64,6 +68,7 @@ export function IntegrationsSection({
   const router = useRouter();
   const fmt = useFormat();
   const [pending, start] = useTransition();
+  const syncing = useGoogleSyncStatus();
   const ready = oauthConfigured && encryptionConfigured;
 
   const run = (
@@ -239,20 +244,11 @@ export function IntegrationsSection({
               <Button
                 variant="outline"
                 size="sm"
-                disabled={pending || !summary.gmail || !aiConfigured}
-                onClick={() =>
-                  run(runGmailSync, (d) => {
-                    const r = d as {
-                      scanned: number;
-                      stored: number;
-                      recruiting: number;
-                      errors: string[];
-                    };
-                    return `Scanned ${r.scanned}, ${r.recruiting} recruiting email${r.recruiting === 1 ? "" : "s"} queued${r.errors.length ? `, ${r.errors.length} errors` : ""}`;
-                  })
-                }
+                disabled={syncing.gmail || !summary.gmail || !aiConfigured}
+                onClick={() => startGoogleSync("gmail", () => router.refresh())}
               >
-                <RefreshCw className={cn(pending && "animate-spin")} /> Sync Gmail now
+                <RefreshCw className={cn(syncing.gmail && "animate-spin")} />{" "}
+                {syncing.gmail ? "Syncing Gmail�" : "Sync Gmail now"}
               </Button>
             </div>
           </CardContent>
@@ -286,15 +282,11 @@ export function IntegrationsSection({
               <Button
                 variant="outline"
                 size="sm"
-                disabled={pending || !summary.calendar}
-                onClick={() =>
-                  run(runCalendarSync, (d) => {
-                    const r = d as { upserted: number; cancelled: number };
-                    return `Synced ${r.upserted} event${r.upserted === 1 ? "" : "s"}${r.cancelled ? `, ${r.cancelled} cancelled` : ""}`;
-                  })
-                }
+                disabled={syncing.calendar || !summary.calendar}
+                onClick={() => startGoogleSync("calendar", () => router.refresh())}
               >
-                <RefreshCw className={cn(pending && "animate-spin")} /> Sync Calendar now
+                <RefreshCw className={cn(syncing.calendar && "animate-spin")} />{" "}
+                {syncing.calendar ? "Syncing Calendar�" : "Sync Calendar now"}
               </Button>
             </div>
           </CardContent>
