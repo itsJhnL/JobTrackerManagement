@@ -22,6 +22,8 @@ import {
   type RateType,
 } from "@/lib/constants";
 import type { ParsedJob } from "@/lib/ai/types";
+import { looksLikeUrl } from "@/lib/job-url/extract";
+import { WORK_ARRANGEMENT_LABELS } from "@/lib/parsed-job";
 
 import { AiErrorAlert } from "./ai-error";
 import { useAiRequest } from "./use-ai-request";
@@ -31,6 +33,7 @@ export function JobParserTool() {
   const { data, error, loading, send, retry } =
     useAiRequest<ParsedJob>("/api/ai/parse-job");
   const quickAdd = useQuickAdd();
+  const isUrl = looksLikeUrl(text);
 
   return (
     <div className="grid gap-4 *:min-w-0 lg:grid-cols-2">
@@ -38,7 +41,8 @@ export function JobParserTool() {
         <CardHeader>
           <CardTitle>Job description</CardTitle>
           <CardDescription>
-            Paste the full post. Only the text you paste is sent to the AI provider.
+            Paste the job posting link, or the full post text. A link is read on the
+            server; only the job page content is sent to the AI provider.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -46,19 +50,19 @@ export function JobParserTool() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={18}
-            placeholder="Paste the job post here…"
+            placeholder="https://… or paste the job post here"
             className="font-mono text-xs leading-relaxed"
           />
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground tabular-nums">
-              {text.length.toLocaleString()} characters
+              {isUrl ? "Job link" : `${text.length.toLocaleString()} characters`}
             </span>
             <Button
-              onClick={() => send({ text })}
-              disabled={loading || text.trim().length < 40}
+              onClick={() => send(isUrl ? { url: text.trim() } : { text })}
+              disabled={loading || (!isUrl && text.trim().length < 40)}
             >
               {loading ? <Spinner /> : <Sparkles />}
-              {loading ? "Parsing…" : "Parse job post"}
+              {loading ? (isUrl ? "Reading page…" : "Parsing…") : "Parse job post"}
             </Button>
           </div>
           {error ? (
@@ -118,6 +122,17 @@ export function JobParserTool() {
                     data.hours_per_week !== null ? String(data.hours_per_week) : null
                   }
                 />
+                <Item
+                  label="Work arrangement"
+                  value={
+                    data.work_arrangement
+                      ? (WORK_ARRANGEMENT_LABELS[data.work_arrangement] ??
+                        data.work_arrangement)
+                      : null
+                  }
+                />
+                <Item label="Location" value={data.location} />
+                <Item label="Job site" value={data.platform ?? null} />
                 <Item label="Working hours" value={data.working_hours} />
                 <Item label="Time zone" value={data.timezone} />
                 <Item label="Subject line" value={data.required_subject_line} />
@@ -132,12 +147,26 @@ export function JobParserTool() {
                 items={data.preferred_skills}
                 variant="secondary"
               />
+              <TextList label="Qualifications" items={data.qualifications ?? []} />
               <TextList label="Responsibilities" items={data.responsibilities} />
               <TextList label="Screening questions" items={data.screening_questions} />
               <TextList
                 label="Required links or assessments"
                 items={data.required_links_or_assessments}
               />
+              {data.application_url ? (
+                <p className="text-xs">
+                  <span className="text-muted-foreground">Apply at: </span>
+                  <a
+                    href={data.application_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="break-all underline-offset-4 hover:underline"
+                  >
+                    {data.application_url}
+                  </a>
+                </p>
+              ) : null}
               {data.application_instructions ? (
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">

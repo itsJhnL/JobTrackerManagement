@@ -169,6 +169,11 @@ function Group({
                       {INTERVIEW_OUTCOME_LABELS[i.outcome]}
                     </Badge>
                     {i.application ? <StatusBadge status={i.application.status} /> : null}
+                    {i.source === "calendar" ? (
+                      <Badge variant="outline" className="text-muted-foreground">
+                        From calendar
+                      </Badge>
+                    ) : null}
                   </div>
                   <p className="text-xs text-muted-foreground tabular-nums">
                     {fmt.dateTime(i.scheduled_at)}

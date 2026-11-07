@@ -26,6 +26,9 @@ export const parsedJobSchema = z.object({
   working_hours: str,
   timezone: str,
   employment_type: z.enum(["full_time", "part_time", "contract", "freelance"]).nullable(),
+  work_arrangement: z.enum(["remote", "hybrid", "onsite"]).nullable(),
+  qualifications: strList,
+  application_url: str,
   application_instructions: str,
   required_subject_line: str,
   screening_questions: strList,
@@ -101,9 +104,14 @@ export function toJsonSchema(schema: z.ZodType) {
 
 // ---- Request bodies for the route handlers -------------------------------
 
-export const parseJobRequest = z.object({
-  text: z.string().trim().min(40, "Paste the full job post").max(40000),
-});
+export const parseJobRequest = z.union([
+  z.object({
+    url: z.url({ protocol: /^https?$/, message: "Enter a valid http(s) link" }).max(2000),
+  }),
+  z.object({
+    text: z.string().trim().min(40, "Paste the full job post").max(40000),
+  }),
+]);
 
 export const analyzeFitRequest = z
   .object({

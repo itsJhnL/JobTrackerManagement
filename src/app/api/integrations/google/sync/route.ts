@@ -26,7 +26,16 @@ export const maxDuration = 60;
 /** Stop starting new emails after this long, leaving headroom under maxDuration. */
 const GMAIL_BUDGET_MS = 25_000;
 
-const bodySchema = z.object({ kind: z.enum(["gmail", "calendar"]) });
+const bodySchema = z.object({
+  kind: z.enum(["gmail", "calendar"]),
+  /** Background calendar refresh: silently skipped when not connected or synced recently. */
+  auto: z.boolean().optional(),
+});
+
+/** Background calendar syncs run at most this often. */
+const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000;
+
+const skipped = () => NextResponse.json({ ok: true, data: { skipped: true } });
 
 function fail(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
@@ -49,11 +58,24 @@ export async function POST(request: Request) {
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return fail("Unknown sync type.");
-  const { kind } = parsed.data;
+  const { kind, auto } = parsed.data;
 
   try {
     const supabase = await createClient();
     const account = await getGoogleAccount(supabase, user.id);
+    if (auto) {
+      const fresh =
+        account?.last_calendar_sync_at &&
+        Date.now() - Date.parse(account.last_calendar_sync_at) < AUTO_SYNC_INTERVAL_MS;
+      if (
+        kind !== "calendar" ||
+        !account ||
+        account.status === "revoked" ||
+        !account.scopes.some((s) => s.includes("calendar")) ||
+        fresh
+      )
+        return skipped();
+    }
     if (!account || account.status === "revoked")
       return fail("Connect your Google account first.");
 

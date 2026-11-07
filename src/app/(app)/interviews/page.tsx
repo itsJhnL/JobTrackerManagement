@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 
+import { CalendarSuggestions } from "@/components/interviews/calendar-suggestions";
 import { InterviewsView } from "@/components/interviews/interviews-view";
 import { PageHeader } from "@/components/shared/page-header";
 import { requireUser } from "@/lib/auth";
 import { listApplicationsForSearch } from "@/lib/data/applications";
+import { listInterviewSuggestions } from "@/lib/data/integrations";
 import { listInterviews } from "@/lib/data/interviews";
 import { getProfile } from "@/lib/data/profiles";
 import { createClient } from "@/lib/supabase/server";
@@ -18,10 +20,11 @@ function currentTime() {
 export default async function InterviewsPage() {
   const user = await requireUser();
   const supabase = await createClient();
-  const [interviews, applications, profile] = await Promise.all([
+  const [interviews, applications, profile, suggestions] = await Promise.all([
     listInterviews(supabase, user.id),
     listApplicationsForSearch(supabase, user.id),
     getProfile(supabase, user.id),
+    listInterviewSuggestions(supabase, user.id),
   ]);
 
   return (
@@ -30,6 +33,7 @@ export default async function InterviewsPage() {
         title="Interviews"
         description="Every scheduled conversation, with links, time zones and notes."
       />
+      <CalendarSuggestions suggestions={suggestions} applications={applications} />
       <InterviewsView
         interviews={interviews}
         applications={applications}

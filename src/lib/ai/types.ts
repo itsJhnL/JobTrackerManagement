@@ -20,11 +20,23 @@ export interface ParsedJob {
   timezone: string | null;
   /** full_time | part_time | contract | freelance | null */
   employment_type: string | null;
+  /** remote | hybrid | onsite | null */
+  work_arrangement: string | null;
+  /** Required qualifications: experience, education, certifications. */
+  qualifications: string[];
+  /** Where to apply, when the posting gives a link. */
+  application_url: string | null;
   application_instructions: string | null;
   required_subject_line: string | null;
   screening_questions: string[];
   required_links_or_assessments: string[];
   summary: string | null;
+  /** Set when the job was read from a link: the page it came from. */
+  source_url?: string | null;
+  /** Set when read from a link: the job site (LinkedIn, Indeed…). */
+  platform?: string | null;
+  /** Set when read from a link: the full job description text. */
+  job_description?: string | null;
 }
 
 export interface FitAnalysis {

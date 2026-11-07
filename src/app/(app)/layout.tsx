@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { QuickAddProvider } from "@/components/applications/quick-add-provider";
+import { CalendarAutoSync } from "@/components/integrations/calendar-auto-sync";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import type { NotificationItem } from "@/components/layout/notifications";
@@ -60,6 +61,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <AppHeader applications={searchable} notifications={notifications} />
             <div id="content" className="flex flex-1 flex-col gap-6 p-4 md:p-6">
               {children}
+              <CalendarAutoSync />
             </div>
           </SidebarInset>
         </SidebarProvider>

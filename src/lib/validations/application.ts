@@ -85,6 +85,7 @@ export const quickApplicationSchema = applicationSchema.pick({
   job_title: true,
   job_url: true,
   platform: true,
+  location: true,
   employment_type: true,
   status: true,
   applied_at: true,

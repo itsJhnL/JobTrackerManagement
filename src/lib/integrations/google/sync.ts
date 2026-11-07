@@ -1,6 +1,7 @@
 import "server-only";
 
 import { AiError, type AiProvider } from "@/lib/ai/types";
+import type { ApplicationStatus } from "@/lib/constants";
 import { logActivity } from "@/lib/data/activities";
 import type { SupabaseServerClient } from "@/lib/supabase/server";
 import type {
@@ -18,6 +19,7 @@ import {
 } from "./calendar";
 import { getAccessToken } from "./client";
 import { getMessage, listRecentMessages } from "./gmail";
+import { detectInterview } from "../calendar-detect";
 import { AUTO_LINK_CONFIDENCE, matchEmailToApplication } from "../matching";
 
 export interface GmailSyncResult {
@@ -253,12 +255,55 @@ export interface CalendarSyncResult {
   fetched: number;
   upserted: number;
   cancelled: number;
+  /** Interviews created from calendar events this run. */
+  interviewsCreated: number;
+  /** Interviews you had already logged (by hand or from email) that were linked to their event. */
+  interviewsLinked: number;
+  /** Linked interviews whose time, link, length or status changed. */
+  interviewsUpdated: number;
+  /** Interview-like events that matched no application; offered as suggestions. */
+  unmatched: number;
 }
 
+/** Window mirrored from Google Calendar. Past days let completed interviews be recorded. */
+const CALENDAR_PAST_DAYS = 30;
+const CALENDAR_FUTURE_DAYS = 90;
+/** An interview already logged this close to an event's start is treated as the same one. */
+const SAME_INTERVIEW_WINDOW_MS = 3 * 60 * 60 * 1000;
+/** Statuses that move to "interview" once an interview is found on the calendar. */
+const PRE_INTERVIEW_STATUSES: ApplicationStatus[] = [
+  "saved",
+  "applied",
+  "viewed",
+  "responded",
+  "shortlisted",
+];
+
+const INTERVIEW_COLUMNS =
+  "id, application_id, scheduled_at, google_event_id, meeting_url, duration_minutes, outcome";
+
+type TrackedInterview = Pick<
+  InterviewRow,
+  | "id"
+  | "application_id"
+  | "scheduled_at"
+  | "google_event_id"
+  | "meeting_url"
+  | "duration_minutes"
+  | "outcome"
+>;
+
 /**
- * Mirrors upcoming Google Calendar events into calendar_events and links the
- * ones we created to their interview (via the private extended property).
- * Idempotent on (user_id, calendar_id, google_event_id).
+ * Mirrors Google Calendar events into calendar_events and keeps interviews in
+ * step with them:
+ *  - events the app created, or already linked, update their interview
+ *    (reschedule, new meeting link, length, cancellation);
+ *  - other events that are clearly interviews with a confidently matched
+ *    application become interviews automatically (source "calendar"), reusing
+ *    an interview already logged around the same time instead of duplicating it;
+ *  - interview-like events with no matching application are left for the user
+ *    to confirm (see suggestions on the Interviews page).
+ * Idempotent: events are keyed on google_event_id, so re-running changes nothing.
  */
 export async function syncCalendar(
   supabase: SupabaseServerClient,
@@ -266,31 +311,213 @@ export async function syncCalendar(
   account: IntegrationAccountRow,
 ): Promise<CalendarSyncResult> {
   const token = await getAccessToken(supabase, account);
-  const events = await listUpcomingEvents(token, { days: 90 });
-  let cancelled = 0;
+  const events = (
+    await listUpcomingEvents(token, {
+      days: CALENDAR_FUTURE_DAYS,
+      pastDays: CALENDAR_PAST_DAYS,
+    })
+  ).filter((e) => e.id);
 
-  const rows = events
-    .filter((e) => e.id)
-    .map((e) => {
-      if (e.status === "cancelled") cancelled += 1;
-      return {
-        user_id: userId,
-        account_id: account.id,
-        interview_id: e.extendedProperties?.private?.[APP_EVENT_KEY] ?? null,
-        google_event_id: e.id,
-        google_calendar_id: "primary",
-        summary: e.summary ?? null,
-        starts_at:
-          e.start?.dateTime ?? (e.start?.date ? `${e.start.date}T00:00:00Z` : null),
-        ends_at: e.end?.dateTime ?? (e.end?.date ? `${e.end.date}T00:00:00Z` : null),
-        timezone: e.start?.timeZone ?? null,
-        meeting_url: eventMeetingUrl(e),
-        html_link: e.htmlLink ?? null,
-        status: e.status ?? null,
-        etag: e.etag ?? null,
-        synced_at: new Date().toISOString(),
-      };
+  const [interviewsRes, appsRes] = await Promise.all([
+    supabase.from("interviews").select(INTERVIEW_COLUMNS).eq("user_id", userId),
+    supabase
+      .from("applications")
+      .select("id, company_name, job_title, job_url, status, contacts(email)")
+      .eq("user_id", userId)
+      .is("archived_at", null),
+  ]);
+  if (interviewsRes.error) throw interviewsRes.error;
+  if (appsRes.error) throw appsRes.error;
+  const interviews: TrackedInterview[] = interviewsRes.data ?? [];
+  const apps = appsRes.data ?? [];
+
+  const byId = new Map(interviews.map((i) => [i.id, i]));
+  const byEvent = new Map(
+    interviews.filter((i) => i.google_event_id).map((i) => [i.google_event_id!, i]),
+  );
+  const appsById = new Map(apps.map((a) => [a.id, a]));
+  const candidates = apps.map((a) => ({
+    id: a.id,
+    company_name: a.company_name,
+    job_title: a.job_title,
+    contact_emails: ((a.contacts as { email: string | null }[] | null) ?? [])
+      .map((c) => c.email)
+      .filter((e): e is string => !!e),
+    domains: domainFromUrl(a.job_url),
+  }));
+
+  const result: CalendarSyncResult = {
+    fetched: events.length,
+    upserted: 0,
+    cancelled: 0,
+    interviewsCreated: 0,
+    interviewsLinked: 0,
+    interviewsUpdated: 0,
+    unmatched: 0,
+  };
+  const rows = [];
+
+  for (const e of events) {
+    const timed = !!e.start?.dateTime;
+    const startsAt =
+      e.start?.dateTime ?? (e.start?.date ? `${e.start.date}T00:00:00Z` : null);
+    const endsAt = e.end?.dateTime ?? (e.end?.date ? `${e.end.date}T00:00:00Z` : null);
+    const meetingUrl = eventMeetingUrl(e);
+    const isCancelled = e.status === "cancelled";
+    if (isCancelled) result.cancelled += 1;
+    const minutes =
+      timed && startsAt && endsAt
+        ? Math.round((Date.parse(endsAt) - Date.parse(startsAt)) / 60_000)
+        : null;
+    const duration = minutes && minutes > 0 && minutes <= 600 ? minutes : null;
+
+    const propId = e.extendedProperties?.private?.[APP_EVENT_KEY];
+    let linked: TrackedInterview | null =
+      (propId ? byId.get(propId) : undefined) ?? byEvent.get(e.id) ?? null;
+
+    if (linked) {
+      // Keep an already-linked interview in step with its event.
+      const patch: Partial<InterviewRow> = {};
+      if (isCancelled) {
+        if (linked.outcome === "pending") patch.outcome = "cancelled";
+      } else if (startsAt) {
+        if (Date.parse(linked.scheduled_at) !== Date.parse(startsAt))
+          patch.scheduled_at = startsAt;
+        if (meetingUrl && meetingUrl !== linked.meeting_url)
+          patch.meeting_url = meetingUrl;
+        if (duration && duration !== linked.duration_minutes)
+          patch.duration_minutes = duration;
+      }
+      if (linked.google_event_id !== e.id) patch.google_event_id = e.id;
+      if (Object.keys(patch).length) {
+        const { error } = await supabase
+          .from("interviews")
+          .update(patch)
+          .eq("id", linked.id)
+          .eq("user_id", userId);
+        if (error) throw error;
+        Object.assign(linked, patch);
+        if (Object.keys(patch).some((k) => k !== "google_event_id"))
+          result.interviewsUpdated += 1;
+      }
+    } else if (!isCancelled && timed && startsAt) {
+      const detection = detectInterview(
+        {
+          summary: e.summary ?? null,
+          description: e.description ?? null,
+          location: e.location ?? null,
+          meetingUrl,
+          allDay: !timed,
+          organizer: e.organizer ?? null,
+          attendees: e.attendees ?? [],
+        },
+        candidates,
+      );
+
+      if (detection.autoTrack && detection.applicationId) {
+        const applicationId = detection.applicationId;
+        // Reuse an interview already logged for this application around this time.
+        const existing = interviews.find(
+          (i) =>
+            i.application_id === applicationId &&
+            !i.google_event_id &&
+            Math.abs(Date.parse(i.scheduled_at) - Date.parse(startsAt)) <=
+              SAME_INTERVIEW_WINDOW_MS,
+        );
+        if (existing) {
+          const patch: Partial<InterviewRow> = {
+            google_event_id: e.id,
+            scheduled_at: startsAt,
+            ...(meetingUrl && !existing.meeting_url ? { meeting_url: meetingUrl } : {}),
+            ...(duration && !existing.duration_minutes
+              ? { duration_minutes: duration }
+              : {}),
+          };
+          const { error } = await supabase
+            .from("interviews")
+            .update(patch)
+            .eq("id", existing.id)
+            .eq("user_id", userId);
+          if (error) throw error;
+          Object.assign(existing, patch);
+          byEvent.set(e.id, existing);
+          linked = existing;
+          result.interviewsLinked += 1;
+        } else {
+          const { data: created, error } = await supabase
+            .from("interviews")
+            .insert({
+              user_id: userId,
+              application_id: applicationId,
+              title: e.summary?.slice(0, 200) ?? null,
+              interview_type: detection.interviewType,
+              scheduled_at: startsAt,
+              duration_minutes: duration,
+              timezone: e.start?.timeZone ?? null,
+              platform: detection.platform,
+              meeting_url: meetingUrl,
+              interviewer: detection.interviewer?.slice(0, 200) ?? null,
+              notes: "Added automatically from Google Calendar.",
+              source: "calendar",
+              google_event_id: e.id,
+            })
+            .select(INTERVIEW_COLUMNS)
+            .single();
+          if (error) throw error;
+          interviews.push(created);
+          byId.set(created.id, created);
+          byEvent.set(e.id, created);
+          linked = created;
+          result.interviewsCreated += 1;
+
+          const app = appsById.get(applicationId);
+          await logActivity(supabase, {
+            userId,
+            applicationId,
+            type: "interview_scheduled",
+            title: `Interview${app ? ` with ${app.company_name}` : ""} found on Google Calendar`,
+            metadata: { google_event_id: e.id },
+          });
+          // Keep the pipeline consistent: an interview means the application reached that stage.
+          if (app && PRE_INTERVIEW_STATUSES.includes(app.status)) {
+            const { error: statusError } = await supabase
+              .from("applications")
+              .update({ status: "interview" })
+              .eq("id", applicationId)
+              .eq("user_id", userId);
+            if (!statusError) {
+              await logActivity(supabase, {
+                userId,
+                applicationId,
+                type: "status_changed",
+                title: `${app.company_name}: status moved to Interview (from Google Calendar)`,
+              });
+              app.status = "interview";
+            }
+          }
+        }
+      } else if (detection.isInterview) {
+        result.unmatched += 1;
+      }
+    }
+
+    rows.push({
+      user_id: userId,
+      account_id: account.id,
+      interview_id: linked?.id ?? null,
+      google_event_id: e.id,
+      google_calendar_id: "primary",
+      summary: e.summary ?? null,
+      starts_at: startsAt,
+      ends_at: endsAt,
+      timezone: e.start?.timeZone ?? null,
+      meeting_url: meetingUrl,
+      html_link: e.htmlLink ?? null,
+      status: e.status ?? null,
+      etag: e.etag ?? null,
+      synced_at: new Date().toISOString(),
     });
+  }
 
   if (rows.length) {
     const { error } = await supabase
@@ -298,40 +525,27 @@ export async function syncCalendar(
       .upsert(rows, { onConflict: "user_id,google_calendar_id,google_event_id" });
     if (error) throw error;
   }
-
-  // Reflect rescheduling/cancellation on linked interviews.
-  await Promise.all(
-    rows.map(async (r) => {
-      if (!r.interview_id) return;
-      if (r.status === "cancelled") {
-        await supabase
-          .from("interviews")
-          .update({ outcome: "cancelled" })
-          .eq("id", r.interview_id)
-          .eq("user_id", userId)
-          .eq("outcome", "pending");
-      } else if (r.starts_at) {
-        await supabase
-          .from("interviews")
-          .update({ scheduled_at: r.starts_at, meeting_url: r.meeting_url ?? undefined })
-          .eq("id", r.interview_id)
-          .eq("user_id", userId)
-          .neq("scheduled_at", r.starts_at);
-      }
-    }),
-  );
+  result.upserted = rows.length;
 
   await touch(supabase, account.id, {
     last_calendar_sync_at: new Date().toISOString(),
     status: "connected",
     last_error: null,
   });
-  await logActivity(supabase, {
-    userId,
-    type: "calendar_synced",
-    title: `Calendar synced: ${rows.length} upcoming event${rows.length === 1 ? "" : "s"}`,
-  });
-  return { fetched: events.length, upserted: rows.length, cancelled };
+  // Only log when something changed, so background syncs don't flood the activity feed.
+  const parts = [
+    result.interviewsCreated ? `${result.interviewsCreated} interview(s) added` : null,
+    result.interviewsLinked ? `${result.interviewsLinked} linked` : null,
+    result.interviewsUpdated ? `${result.interviewsUpdated} updated` : null,
+  ].filter(Boolean);
+  if (parts.length) {
+    await logActivity(supabase, {
+      userId,
+      type: "calendar_synced",
+      title: `Calendar synced: ${parts.join(", ")}`,
+    });
+  }
+  return result;
 }
 
 /** Creates (or updates) the Google Calendar event for an interview and records the link. */

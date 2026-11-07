@@ -43,3 +43,22 @@ export const interviewDefaults = (applicationId = ""): InterviewInput => ({
   notes: "",
   outcome: "pending",
 });
+
+/** Track a calendar event as an interview: link to an application, or create one. */
+export const trackCalendarEventSchema = z
+  .object({
+    calendar_event_id: uuid,
+    application_id: uuid.optional(),
+    new_application: z
+      .object({
+        company_name: z.string().trim().min(1, "Enter the company").max(200),
+        job_title: z.string().trim().min(1, "Enter the job title").max(200),
+      })
+      .optional(),
+    interview_type: z.enum(INTERVIEW_TYPES).default("video"),
+  })
+  .refine((v) => !!v.application_id !== !!v.new_application, {
+    message: "Choose an application or enter a new one",
+    path: ["application_id"],
+  });
+export type TrackCalendarEventInput = z.input<typeof trackCalendarEventSchema>;

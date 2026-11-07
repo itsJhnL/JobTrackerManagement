@@ -38,6 +38,8 @@ import {
   RATE_TYPE_LABELS,
 } from "@/lib/constants";
 import type { ParsedJob } from "@/lib/ai/types";
+import { looksLikeUrl } from "@/lib/job-url/extract";
+import { valuesFromParsed, WORK_ARRANGEMENT_LABELS } from "@/lib/parsed-job";
 import {
   quickApplicationSchema,
   type QuickApplicationInput,
@@ -65,6 +67,7 @@ function baseValues(defaults: QuickAddDefaults): QuickApplicationInput {
     job_title: "",
     job_url: "",
     platform: "",
+    location: "",
     employment_type: null,
     status: "saved",
     applied_at: "",
@@ -114,8 +117,9 @@ export function QuickAddSheet({
   });
 
   async function parseWithAi() {
-    if (jobText.trim().length < 40) {
-      toast.error("Paste the full job post first (at least a few lines).");
+    const isUrl = looksLikeUrl(jobText);
+    if (!isUrl && jobText.trim().length < 40) {
+      toast.error("Paste a job link, or the full job post (at least a few lines).");
       return;
     }
     setParsing(true);
@@ -124,7 +128,7 @@ export function QuickAddSheet({
       const res = await fetch("/api/ai/parse-job", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: jobText }),
+        body: JSON.stringify(isUrl ? { url: jobText.trim() } : { text: jobText }),
       });
       const json = (await res.json()) as {
         data?: ParsedJob;
@@ -200,7 +204,7 @@ export function QuickAddSheet({
               <SheetTitle>
                 {step === "choose" && "Add application"}
                 {step === "manual" && "New application"}
-                {step === "paste" && "Paste job description"}
+                {step === "paste" && "Paste a job link or description"}
                 {step === "review" && "Review extracted details"}
               </SheetTitle>
               <SheetDescription>
@@ -209,7 +213,7 @@ export function QuickAddSheet({
                 {step === "manual" &&
                   "Just the essentials. You can add more on the detail page."}
                 {step === "paste" &&
-                  "Paste the full post. Nothing is saved until you review it."}
+                  "Paste the job posting link, or the full post text. Nothing is saved until you review it."}
                 {step === "review" &&
                   "Everything below is editable. Check it before saving."}
               </SheetDescription>
@@ -228,8 +232,8 @@ export function QuickAddSheet({
               />
               <ChoiceCard
                 icon={ClipboardPaste}
-                title="Paste job description"
-                description="AI extracts company, title, skills, pay and questions for review."
+                title="Paste a job link or post"
+                description="Reads the posting and fills in company, title, pay, location, skills and more for review."
                 onClick={() => setStep("paste")}
                 accent
               />
@@ -242,12 +246,14 @@ export function QuickAddSheet({
                 value={jobText}
                 onChange={(e) => setJobText(e.target.value)}
                 rows={16}
-                placeholder="Paste the job post here…"
+                placeholder="https://… or paste the job post here"
                 className="font-mono text-xs leading-relaxed"
                 autoFocus
               />
               <p className="text-xs text-muted-foreground">
-                {jobText.length.toLocaleString()} characters
+                {looksLikeUrl(jobText)
+                  ? "Link detected. The page will be read on the server and the details extracted."
+                  : `${jobText.length.toLocaleString()} characters`}
               </p>
               {parseError ? (
                 <Alert variant="destructive">
@@ -291,6 +297,12 @@ export function QuickAddSheet({
                   name="platform"
                   label="Platform"
                   placeholder="LinkedIn, Upwork…"
+                />
+                <TextField
+                  control={c}
+                  name="location"
+                  label="Location"
+                  placeholder="Remote · Philippines"
                 />
                 <SelectField
                   control={c}
@@ -448,9 +460,13 @@ function ParsedSummary({ parsed }: { parsed: ParsedJob }) {
   return (
     <Alert>
       <Sparkles />
-      <AlertTitle>Extracted by AI — verify before saving</AlertTitle>
+      <AlertTitle>
+        {parsed.source_url ? "Read from the job page" : "Extracted by AI"} — verify before
+        saving
+      </AlertTitle>
       <AlertDescription className="flex flex-col gap-2">
         {parsed.summary ? <p>{parsed.summary}</p> : null}
+        <MissingFields parsed={parsed} />
         {chips.length ? (
           <div className="flex flex-wrap gap-1">
             {chips.map(({ s, kind }) => (
@@ -479,55 +495,27 @@ function ParsedSummary({ parsed }: { parsed: ParsedJob }) {
   );
 }
 
-function valuesFromParsed(
-  current: QuickApplicationInput,
-  p: ParsedJob,
-  jobText: string,
-): QuickApplicationInput {
-  const rate = p.salary_min ?? p.salary_max ?? null;
-  return {
-    ...current,
-    company_name: p.company ?? current.company_name,
-    job_title: p.job_title ?? current.job_title,
-    employment_type: isOneOf(p.employment_type, EMPLOYMENT_TYPES)
-      ? p.employment_type
-      : current.employment_type,
-    rate_type: isOneOf(p.rate_type, RATE_TYPES) ? p.rate_type : current.rate_type,
-    currency: isOneOf(p.currency, CURRENCIES) ? p.currency : current.currency,
-    offered_rate: rate ?? current.offered_rate,
-    hours_per_week: p.hours_per_week ?? current.hours_per_week,
-    timezone: p.timezone ?? current.timezone,
-    job_description: jobText || current.job_description,
-    notes: buildNotes(p),
-  };
-}
-
-function buildNotes(p: ParsedJob) {
-  const parts: string[] = [];
-  if (p.application_instructions)
-    parts.push(`Application instructions:\n${p.application_instructions}`);
-  if (p.required_subject_line)
-    parts.push(`Required subject line: ${p.required_subject_line}`);
-  if (p.screening_questions.length)
-    parts.push(
-      `Screening questions:\n${p.screening_questions.map((q) => `- ${q}`).join("\n")}`,
-    );
-  if (p.required_links_or_assessments.length)
-    parts.push(
-      `Required links / assessments:\n${p.required_links_or_assessments.map((q) => `- ${q}`).join("\n")}`,
-    );
-  if (p.working_hours) parts.push(`Working hours: ${p.working_hours}`);
-  if (p.salary_min !== null || p.salary_max !== null) {
-    parts.push(
-      `Stated pay: ${[p.salary_min, p.salary_max].filter((v) => v !== null).join(" – ")} ${p.currency ?? ""} ${p.rate_type ?? ""}`.trim(),
-    );
-  }
-  return parts.join("\n\n");
-}
-
-function isOneOf<const T extends readonly string[]>(
-  value: string | null | undefined,
-  list: T,
-): value is T[number] {
-  return !!value && (list as readonly string[]).includes(value);
+/** Lists what the posting didn't state, so blanks are explained rather than guessed. */
+function MissingFields({ parsed }: { parsed: ParsedJob }) {
+  const missing = [
+    !parsed.company && "company",
+    !parsed.job_title && "job title",
+    parsed.salary_min === null && parsed.salary_max === null && "pay",
+    !parsed.location && !parsed.work_arrangement && "location",
+    !parsed.work_arrangement && parsed.location && "remote/hybrid/on-site",
+    !parsed.employment_type && "employment type",
+  ].filter(Boolean);
+  const arrangement = parsed.work_arrangement
+    ? WORK_ARRANGEMENT_LABELS[parsed.work_arrangement]
+    : null;
+  return (
+    <>
+      {arrangement ? <p className="text-xs">Work arrangement: {arrangement}</p> : null}
+      {missing.length ? (
+        <p className="text-xs text-muted-foreground">
+          Not stated in the posting: {missing.join(", ")}. Left blank for you to fill in.
+        </p>
+      ) : null}
+    </>
+  );
 }

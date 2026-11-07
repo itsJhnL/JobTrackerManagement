@@ -64,6 +64,10 @@ export const parseJobPrompt = (text: string) => ({
   system: `You extract structured data from job postings. Be literal: only report what the posting states.
 Use null for anything not stated. Salary figures are numbers without currency symbols; put the ISO 4217 currency code in "currency".
 rate_type must be one of hourly, daily, weekly, monthly, annual, fixed_project. employment_type must be one of full_time, part_time, contract, freelance.
+work_arrangement is remote, hybrid or onsite, only when the posting says so (e.g. "work from home" = remote, "2 days in office" = hybrid, a required office location with no remote option = onsite); otherwise null.
+"location" is the city/region/country of the job or, for remote roles, the region applicants must be in. "company" is the hiring employer, never the job board (LinkedIn, Indeed, OnlineJobs.ph and similar are platforms, not employers).
+"required_skills" are concrete skills/tools; "qualifications" are other requirements such as years of experience, education, certifications or languages. "application_url" is an explicit link for applying, if one is given.
+If the input includes STRUCTURED DATA from the page markup, treat it as authoritative and use the page text only to fill what it lacks.
 "screening_questions" are questions the applicant must answer; "required_links_or_assessments" are portfolio links, tests or tasks demanded.
 "required_subject_line" is any exact email subject the posting insists on. "summary" is two sentences, neutral tone.
 Return only the JSON object.`,

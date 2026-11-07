@@ -17,6 +17,14 @@ export interface CalendarEvent {
   end?: { dateTime?: string; date?: string; timeZone?: string };
   conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
   extendedProperties?: { private?: Record<string, string> };
+  organizer?: { email?: string; displayName?: string; self?: boolean };
+  attendees?: {
+    email?: string;
+    displayName?: string;
+    self?: boolean;
+    resource?: boolean;
+    responseStatus?: string;
+  }[];
 }
 
 /** The private key we stamp on events we create, to recognise them on sync. */
@@ -24,16 +32,22 @@ export const APP_EVENT_KEY = "jobTrackerInterviewId";
 
 export async function listUpcomingEvents(
   accessToken: string,
-  options: { calendarId?: string; days?: number; maxResults?: number } = {},
+  options: {
+    calendarId?: string;
+    days?: number;
+    /** Also include events from this many days ago (recently completed interviews). */
+    pastDays?: number;
+    maxResults?: number;
+  } = {},
 ): Promise<CalendarEvent[]> {
   const calendarId = encodeURIComponent(options.calendarId ?? "primary");
   const now = new Date();
   const params = new URLSearchParams({
-    timeMin: now.toISOString(),
+    timeMin: new Date(now.getTime() - (options.pastDays ?? 0) * 86_400_000).toISOString(),
     timeMax: new Date(now.getTime() + (options.days ?? 60) * 86_400_000).toISOString(),
     singleEvents: "true",
     orderBy: "startTime",
-    maxResults: String(options.maxResults ?? 100),
+    maxResults: String(options.maxResults ?? 250),
     showDeleted: "true",
   });
   const json = await googleFetch<{ items?: CalendarEvent[] }>(

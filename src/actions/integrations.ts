@@ -23,6 +23,9 @@ import { decryptSecret } from "@/lib/integrations/google/crypto";
 import { GoogleAuthError, revokeToken } from "@/lib/integrations/google/oauth";
 import { pushInterviewToCalendar } from "@/lib/integrations/google/sync";
 import { uuid } from "@/lib/validations/common";
+import { trackCalendarEventSchema } from "@/lib/validations/interview";
+import { platformFromMeetingUrl } from "@/lib/integrations/calendar-detect";
+import { normalize } from "@/lib/integrations/matching";
 
 function revalidate() {
   revalidatePath("/", "layout");
@@ -270,6 +273,144 @@ export async function addInterviewToCalendar(
     revalidate();
     revalidatePath(`/applications/${interview.application_id}`);
     return ok({ eventId: event.id });
+  } catch (e) {
+    return fail(describe(e));
+  }
+}
+
+/**
+ * Tracks a calendar event as an interview after the user picks (or names) the
+ * application. Never duplicates: reuses an interview already linked to the
+ * event, and an existing application with the same company and title.
+ */
+export async function trackCalendarEvent(
+  input: unknown,
+): Promise<ActionResult<{ interviewId: string; applicationId: string }>> {
+  const parsed = trackCalendarEventSchema.safeParse(input);
+  if (!parsed.success) return fromZodError(parsed.error);
+  const v = parsed.data;
+
+  try {
+    const { user, supabase } = await requireUserForAction();
+    const { data: event, error: eventError } = await supabase
+      .from("calendar_events")
+      .select("*")
+      .eq("id", v.calendar_event_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (eventError) return fail(eventError.message);
+    if (!event || !event.starts_at) return fail("Calendar event not found.");
+
+    // Already tracked (e.g. a sync ran meanwhile): just make sure the link exists.
+    const { data: already } = await supabase
+      .from("interviews")
+      .select("id, application_id")
+      .eq("user_id", user.id)
+      .eq("google_event_id", event.google_event_id)
+      .maybeSingle();
+    if (already) {
+      await supabase
+        .from("calendar_events")
+        .update({ interview_id: already.id })
+        .eq("id", event.id)
+        .eq("user_id", user.id);
+      revalidate();
+      return ok({ interviewId: already.id, applicationId: already.application_id });
+    }
+
+    let applicationId = v.application_id ?? null;
+    let companyName = "";
+    if (applicationId) {
+      const { data: app } = await supabase
+        .from("applications")
+        .select("id, company_name, status")
+        .eq("id", applicationId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!app) return fail("Application not found.");
+      companyName = app.company_name;
+      if (["saved", "applied", "viewed", "responded", "shortlisted"].includes(app.status))
+        await supabase
+          .from("applications")
+          .update({ status: "interview" })
+          .eq("id", app.id)
+          .eq("user_id", user.id);
+    } else if (v.new_application) {
+      const { company_name, job_title } = v.new_application;
+      companyName = company_name;
+      // Reuse an existing application for the same company and role.
+      const { data: same } = await supabase
+        .from("applications")
+        .select("id, company_name, job_title")
+        .eq("user_id", user.id)
+        .is("archived_at", null)
+        .ilike("company_name", company_name.replace(/[%_\\]/g, "\\$&"));
+      const match = (same ?? []).find(
+        (a) => normalize(a.job_title) === normalize(job_title),
+      );
+      if (match) applicationId = match.id;
+      else {
+        const { data: created, error } = await supabase
+          .from("applications")
+          .insert({
+            user_id: user.id,
+            company_name,
+            job_title,
+            status: "interview",
+            platform: "Google Calendar",
+          })
+          .select("id")
+          .single();
+        if (error) return fail(error.message);
+        applicationId = created.id;
+        await logActivity(supabase, {
+          userId: user.id,
+          applicationId,
+          type: "application_created",
+          title: `Added ${company_name} from a calendar interview`,
+        });
+      }
+    }
+    if (!applicationId) return fail("Choose an application.");
+
+    const start = Date.parse(event.starts_at);
+    const end = event.ends_at ? Date.parse(event.ends_at) : NaN;
+    const minutes = Number.isFinite(end) ? Math.round((end - start) / 60_000) : null;
+    const { data: interview, error: insertError } = await supabase
+      .from("interviews")
+      .insert({
+        user_id: user.id,
+        application_id: applicationId,
+        title: event.summary?.slice(0, 200) ?? null,
+        interview_type: v.interview_type,
+        scheduled_at: event.starts_at,
+        duration_minutes: minutes && minutes > 0 && minutes <= 600 ? minutes : null,
+        timezone: event.timezone,
+        platform: platformFromMeetingUrl(event.meeting_url),
+        meeting_url: event.meeting_url,
+        notes: "Added from Google Calendar.",
+        source: "calendar",
+        google_event_id: event.google_event_id,
+      })
+      .select("id")
+      .single();
+    if (insertError) return fail(insertError.message);
+
+    await supabase
+      .from("calendar_events")
+      .update({ interview_id: interview.id })
+      .eq("id", event.id)
+      .eq("user_id", user.id);
+    await logActivity(supabase, {
+      userId: user.id,
+      applicationId,
+      type: "interview_scheduled",
+      title: `Interview${companyName ? ` with ${companyName}` : ""} tracked from Google Calendar`,
+    });
+
+    revalidate();
+    revalidatePath(`/applications/${applicationId}`);
+    return ok({ interviewId: interview.id, applicationId });
   } catch (e) {
     return fail(describe(e));
   }

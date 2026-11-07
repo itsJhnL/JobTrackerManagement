@@ -112,12 +112,20 @@ export function UpcomingInterviews({
                           <ExternalLink className="size-3" /> Join
                         </a>
                       ) : null}
-                      {i.google_event_id ? (
+                      {i.google_event_id && i.source !== "calendar" ? (
                         <Badge
                           variant="outline"
                           className="h-4 gap-1 px-1 text-[10px] text-muted-foreground"
                         >
                           <CalendarSync /> On Google Calendar
+                        </Badge>
+                      ) : null}
+                      {i.source === "calendar" ? (
+                        <Badge
+                          variant="outline"
+                          className="h-4 gap-1 px-1 text-[10px] text-muted-foreground"
+                        >
+                          <CalendarSync /> From calendar
                         </Badge>
                       ) : null}
                       {i.source === "gmail" ? (

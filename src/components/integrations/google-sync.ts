@@ -49,13 +49,33 @@ interface CalendarResult {
   fetched: number;
   upserted: number;
   cancelled: number;
+  interviewsCreated: number;
+  interviewsLinked: number;
+  interviewsUpdated: number;
+  unmatched: number;
 }
 
-async function callSync<T>(kind: GoogleSyncKind): Promise<T> {
+function plural(n: number, word: string) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+/** One line describing what a calendar sync changed. */
+export function describeCalendarSync(r: CalendarResult) {
+  const parts = [
+    r.interviewsCreated ? `${plural(r.interviewsCreated, "interview")} added` : null,
+    r.interviewsLinked ? `${r.interviewsLinked} linked to existing interviews` : null,
+    r.interviewsUpdated ? `${r.interviewsUpdated} updated` : null,
+  ].filter(Boolean);
+  return parts.length
+    ? `Calendar synced: ${parts.join(", ")}`
+    : `Calendar synced: no new interviews in ${plural(r.upserted, "event")}`;
+}
+
+async function callSync<T>(kind: GoogleSyncKind, auto = false): Promise<T> {
   const res = await fetch("/api/integrations/google/sync", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kind }),
+    body: JSON.stringify({ kind, auto }),
   });
   const json = (await res.json().catch(() => null)) as
     { ok: true; data: T } | { ok: false; error?: string } | null;
@@ -87,10 +107,12 @@ export async function startGoogleSync(kind: GoogleSyncKind, onDone?: () => void)
   try {
     if (kind === "calendar") {
       const r = await callSync<CalendarResult>("calendar");
-      toast.success(
-        `Synced ${r.upserted} event${r.upserted === 1 ? "" : "s"}${r.cancelled ? `, ${r.cancelled} cancelled` : ""}`,
-        { id, description: undefined },
-      );
+      toast.success(describeCalendarSync(r), {
+        id,
+        description: r.unmatched
+          ? `${plural(r.unmatched, "possible interview")} need${r.unmatched === 1 ? "s" : ""} an application. See the Interviews page.`
+          : undefined,
+      });
     } else {
       let scanned = 0;
       let total = 0;
@@ -140,5 +162,32 @@ export async function startGoogleSync(kind: GoogleSyncKind, onDone?: () => void)
     });
   } finally {
     setRunning(kind, false);
+  }
+}
+
+let autoSyncStarted = false;
+
+/**
+ * Quietly refreshes Google Calendar once per app load (the server skips it when
+ * calendar isn't connected or synced in the last 30 minutes). Only speaks up
+ * when interviews were added or changed.
+ */
+export async function autoSyncCalendar(onChange?: () => void) {
+  if (autoSyncStarted || snapshot.calendar) return;
+  autoSyncStarted = true;
+  setRunning("calendar", true);
+  try {
+    const r = await callSync<CalendarResult | { skipped: true }>("calendar", true);
+    if ("skipped" in r) return;
+    if (r.interviewsCreated + r.interviewsLinked + r.interviewsUpdated > 0) {
+      toast.success(describeCalendarSync(r), {
+        description: "Found on your Google Calendar.",
+      });
+      onChange?.();
+    }
+  } catch {
+    // Background refresh: failures surface on the next manual sync instead.
+  } finally {
+    setRunning("calendar", false);
   }
 }
