@@ -5,6 +5,7 @@ import type {
   IntegrationAccountRow,
 } from "@/lib/supabase/database.types";
 import type { ApplicationStatus, InterviewType } from "@/lib/constants";
+import { EMAIL_READ_KEY } from "@/lib/inbox";
 import { detectInterview, guessCompany } from "@/lib/integrations/calendar-detect";
 import { matchEmailToApplication } from "@/lib/integrations/matching";
 
@@ -196,4 +197,44 @@ export async function listInterviewSuggestions(
     });
   }
   return out.slice(0, 20);
+}
+
+export interface InboxStatus {
+  unread: number;
+  /** Newest unread emails, for the notifications menu. */
+  latestUnread: Pick<
+    EmailMessageRow,
+    "id" | "subject" | "from_name" | "from_email" | "received_at"
+  >[];
+  lastGmailSyncAt: string | null;
+}
+
+/** Unread count and newest unread emails; cheap enough to poll. */
+export async function getInboxStatus(
+  supabase: SupabaseServerClient,
+  userId: string,
+): Promise<InboxStatus> {
+  const [unreadRes, accountRes] = await Promise.all([
+    supabase
+      .from("email_messages")
+      .select("id, subject, from_name, from_email, received_at", { count: "exact" })
+      .eq("user_id", userId)
+      .eq("review_status", "pending")
+      .neq("classification", "not_recruiting")
+      .is(`extracted->>${EMAIL_READ_KEY}`, null)
+      .order("received_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("integration_accounts")
+      .select("last_gmail_sync_at")
+      .eq("user_id", userId)
+      .eq("provider", "google")
+      .maybeSingle(),
+  ]);
+  if (unreadRes.error) throw unreadRes.error;
+  return {
+    unread: unreadRes.count ?? 0,
+    latestUnread: unreadRes.data ?? [],
+    lastGmailSyncAt: accountRes.data?.last_gmail_sync_at ?? null,
+  };
 }

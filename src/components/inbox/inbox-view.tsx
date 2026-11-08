@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { CalendarPlus, Check, Inbox, Mail, RefreshCw, X } from "lucide-react";
+import { CalendarPlus, Check, CheckCheck, Inbox, Mail, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { ButtonLink } from "@/components/shared/button-link";
-import { confirmEmail, dismissEmail } from "@/actions/integrations";
+import { confirmEmail, dismissEmail, markEmailsRead } from "@/actions/integrations";
+import { TimeAgo } from "@/components/shared/time-ago";
 import {
   startGoogleSync,
   useGoogleSyncStatus,
@@ -40,6 +41,7 @@ import {
 } from "@/lib/constants";
 import type { EmailAnalysis } from "@/lib/ai/types";
 import type { EmailMessageWithApplication } from "@/lib/data/integrations";
+import { isEmailUnread } from "@/lib/inbox";
 import { cn } from "@/lib/utils";
 
 const KIND_LABELS: Record<string, string> = {
@@ -71,6 +73,7 @@ interface InboxViewProps {
     status: ApplicationStatus;
   }[];
   gmailReady: boolean;
+  lastGmailSyncAt: string | null;
   calendarReady: boolean;
 }
 
@@ -79,6 +82,7 @@ export function InboxView({
   applications,
   gmailReady,
   calendarReady,
+  lastGmailSyncAt,
 }: InboxViewProps) {
   const router = useRouter();
   const fmt = useFormat();
@@ -92,6 +96,28 @@ export function InboxView({
   };
 
   const syncing = useGoogleSyncStatus().gmail;
+  // Emails opened in this session show as read immediately; the server catches up.
+  const [readLocally, setReadLocally] = useState<Set<string>>(() => new Set());
+  const unread = (e: EmailMessageWithApplication) =>
+    isEmailUnread(e) && !readLocally.has(e.id);
+  const unreadCount = groups.pending.filter(unread).length;
+
+  const markRead = (ids?: string[]) => {
+    setReadLocally((prev) => {
+      const next = new Set(prev);
+      (ids ?? groups.pending.map((e) => e.id)).forEach((id) => next.add(id));
+      return next;
+    });
+    void markEmailsRead(ids).then((r) => {
+      if (!r.ok) toast.error(r.error);
+      else router.refresh();
+    });
+  };
+
+  const openReview = (e: EmailMessageWithApplication) => {
+    setReview(e);
+    if (unread(e)) markRead([e.id]);
+  };
   const sync = () => startGoogleSync("gmail", () => router.refresh());
 
   const dismiss = (id: string) =>
@@ -106,14 +132,25 @@ export function InboxView({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {gmailReady
-            ? `${groups.pending.length} awaiting your review. Nothing is linked or scheduled until you confirm.`
+            ? `${groups.pending.length} awaiting your review${unreadCount ? `, ${unreadCount} unread` : ""}. Nothing is linked or scheduled until you confirm.`
             : "Connect Gmail in Settings → Integrations to detect recruiting emails automatically."}
         </p>
         {gmailReady ? (
-          <Button size="sm" variant="outline" onClick={sync} disabled={syncing}>
-            <RefreshCw className={cn(syncing && "animate-spin")} />{" "}
-            {syncing ? "Syncing�" : "Sync Gmail"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              Auto-sync on · last synced{" "}
+              {lastGmailSyncAt ? <TimeAgo value={lastGmailSyncAt} /> : "never"}
+            </span>
+            {unreadCount > 0 ? (
+              <Button size="sm" variant="ghost" onClick={() => markRead()}>
+                <CheckCheck /> Mark all as read
+              </Button>
+            ) : null}
+            <Button size="sm" variant="outline" onClick={sync} disabled={syncing}>
+              <RefreshCw className={cn(syncing && "animate-spin")} />{" "}
+              {syncing ? "Syncing…" : "Sync now"}
+            </Button>
+          </div>
         ) : (
           <ButtonLink href="/settings?tab=integrations" size="sm">
             Connect Gmail
@@ -148,10 +185,12 @@ export function InboxView({
               <ul className="flex flex-col divide-y rounded-xl border">
                 {groups[k].map((e) => {
                   const x = e.extracted as Partial<EmailAnalysis> | null;
+                  const isUnread = unread(e);
                   return (
                     <li
                       key={e.id}
-                      className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start"
+                      data-unread={isUnread || undefined}
+                      className="flex flex-col gap-2 px-4 py-3 data-unread:bg-primary/[0.03] sm:flex-row sm:items-start"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -165,7 +204,20 @@ export function InboxView({
                             {KIND_LABELS[e.classification ?? "other_recruiting"] ??
                               e.classification}
                           </Badge>
-                          <span className="truncate font-medium">{e.subject}</span>
+                          {isUnread ? (
+                            <span
+                              className="size-2 shrink-0 rounded-full bg-primary"
+                              aria-label="Unread"
+                            />
+                          ) : null}
+                          <span
+                            className={cn(
+                              "truncate",
+                              isUnread ? "font-semibold" : "font-medium",
+                            )}
+                          >
+                            {e.subject}
+                          </span>
                         </div>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {e.from_name ?? e.from_email} · {fmt.dateTime(e.received_at)}
@@ -205,7 +257,7 @@ export function InboxView({
                         <div className="flex shrink-0 items-center gap-1 self-end sm:self-start">
                           <Button
                             size="sm"
-                            onClick={() => setReview(e)}
+                            onClick={() => openReview(e)}
                             disabled={pending}
                           >
                             <Check /> Review

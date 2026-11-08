@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAiProvider } from "@/lib/ai";
+import { aiStatus, getAiProvider } from "@/lib/ai";
 import { AiError } from "@/lib/ai/types";
 import { getCurrentUser } from "@/lib/auth";
 import { getProfile } from "@/lib/data/profiles";
@@ -28,12 +28,12 @@ const GMAIL_BUDGET_MS = 25_000;
 
 const bodySchema = z.object({
   kind: z.enum(["gmail", "calendar"]),
-  /** Background calendar refresh: silently skipped when not connected or synced recently. */
+  /** Background refresh: silently skipped when not connected or synced recently. */
   auto: z.boolean().optional(),
 });
 
-/** Background calendar syncs run at most this often. */
-const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000;
+/** Background syncs run at most this often (Gmail costs an AI call per new email). */
+const AUTO_SYNC_INTERVAL_MS = { calendar: 30 * 60 * 1000, gmail: 10 * 60 * 1000 };
 
 const skipped = () => NextResponse.json({ ok: true, data: { skipped: true } });
 
@@ -64,14 +64,14 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const account = await getGoogleAccount(supabase, user.id);
     if (auto) {
-      const fresh =
-        account?.last_calendar_sync_at &&
-        Date.now() - Date.parse(account.last_calendar_sync_at) < AUTO_SYNC_INTERVAL_MS;
+      const last =
+        kind === "gmail" ? account?.last_gmail_sync_at : account?.last_calendar_sync_at;
+      const fresh = !!last && Date.now() - Date.parse(last) < AUTO_SYNC_INTERVAL_MS[kind];
       if (
-        kind !== "calendar" ||
         !account ||
         account.status === "revoked" ||
-        !account.scopes.some((s) => s.includes("calendar")) ||
+        !account.scopes.some((s) => s.includes(kind)) ||
+        (kind === "gmail" && !aiStatus().configured) ||
         fresh
       )
         return skipped();

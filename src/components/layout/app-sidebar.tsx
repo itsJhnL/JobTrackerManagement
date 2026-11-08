@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BriefcaseBusiness } from "lucide-react";
@@ -27,6 +28,11 @@ interface AppSidebarProps {
   /** Badge counts keyed by href, e.g. { "/follow-ups": 3 }. */
   badges?: Record<string, number>;
 }
+
+const BADGE_LABELS: Record<string, string> = {
+  "/inbox": "unread",
+  "/follow-ups": "due",
+};
 
 export function AppSidebar({ user, badges = {} }: AppSidebarProps) {
   const pathname = usePathname();
@@ -67,8 +73,15 @@ export function AppSidebar({ user, badges = {} }: AppSidebarProps) {
                         <span>{item.title}</span>
                       </SidebarMenuButton>
                       {count ? (
-                        <SidebarMenuBadge className="bg-rose-500/10 text-rose-600 dark:text-rose-300">
-                          {count}
+                        <SidebarMenuBadge
+                          aria-label={`${count} ${BADGE_LABELS[item.href] ?? "new"}`}
+                          className={cn(
+                            item.href === "/inbox"
+                              ? "bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-active/menu-button:text-primary-foreground"
+                              : "bg-rose-500/10 text-rose-600 peer-hover/menu-button:text-rose-600 peer-data-active/menu-button:text-rose-600 dark:text-rose-300 dark:peer-hover/menu-button:text-rose-300 dark:peer-data-active/menu-button:text-rose-300",
+                          )}
+                        >
+                          {count > 99 ? "99+" : count}
                         </SidebarMenuBadge>
                       ) : null}
                     </SidebarMenuItem>

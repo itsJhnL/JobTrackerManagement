@@ -165,16 +165,13 @@ export async function startGoogleSync(kind: GoogleSyncKind, onDone?: () => void)
   }
 }
 
-let autoSyncStarted = false;
-
 /**
- * Quietly refreshes Google Calendar once per app load (the server skips it when
- * calendar isn't connected or synced in the last 30 minutes). Only speaks up
- * when interviews were added or changed.
+ * Background refreshes. The server decides whether anything runs (connected,
+ * permission granted, not synced recently), so these are safe to call often.
+ * They stay quiet unless something new turned up.
  */
 export async function autoSyncCalendar(onChange?: () => void) {
-  if (autoSyncStarted || snapshot.calendar) return;
-  autoSyncStarted = true;
+  if (snapshot.calendar) return;
   setRunning("calendar", true);
   try {
     const r = await callSync<CalendarResult | { skipped: true }>("calendar", true);
@@ -189,5 +186,30 @@ export async function autoSyncCalendar(onChange?: () => void) {
     // Background refresh: failures surface on the next manual sync instead.
   } finally {
     setRunning("calendar", false);
+  }
+}
+
+export async function autoSyncGmail(opts: {
+  onChange?: () => void;
+  openInbox?: () => void;
+}) {
+  if (snapshot.gmail) return;
+  setRunning("gmail", true);
+  try {
+    // One time-boxed batch per run; anything left is picked up by the next run.
+    const r = await callSync<GmailBatch | { skipped: true }>("gmail", true);
+    if ("skipped" in r) return;
+    if (r.stored > 0) opts.onChange?.();
+    if (r.recruiting > 0)
+      toast.info(
+        `${plural(r.recruiting, "new job email")} in your Inbox`,
+        opts.openInbox
+          ? { action: { label: "Open Inbox", onClick: opts.openInbox } }
+          : undefined,
+      );
+  } catch {
+    // Background refresh: failures surface on the next manual sync instead.
+  } finally {
+    setRunning("gmail", false);
   }
 }

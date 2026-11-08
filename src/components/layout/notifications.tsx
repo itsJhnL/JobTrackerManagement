@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, CalendarClock, ClipboardList } from "lucide-react";
+import { Bell, CalendarClock, ClipboardList, Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 
 export interface NotificationItem {
   id: string;
-  kind: "follow_up" | "interview" | "assessment";
+  kind: "follow_up" | "interview" | "assessment" | "email";
   title: string;
   subtitle: string;
   href: string;
@@ -38,6 +38,7 @@ const ICONS = {
   follow_up: Bell,
   interview: CalendarClock,
   assessment: ClipboardList,
+  email: Mail,
 } as const;
 
 export function Notifications({ items }: { items: NotificationItem[] }) {
@@ -114,7 +115,15 @@ export function Notifications({ items }: { items: NotificationItem[] }) {
             })}
           </ItemGroup>
         ) : null}
-        <div className="border-t px-3 py-2">
+        <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+          {items.some((i) => i.kind === "email") ? (
+            <Link
+              href="/inbox"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              Open Inbox
+            </Link>
+          ) : null}
           <Link
             href="/follow-ups"
             className="text-xs font-medium text-muted-foreground hover:text-foreground"

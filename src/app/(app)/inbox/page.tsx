@@ -29,6 +29,7 @@ export default async function InboxPage() {
         applications={applications}
         gmailReady={summary.connected && summary.gmail}
         calendarReady={summary.connected && summary.calendar}
+        lastGmailSyncAt={summary.lastGmailSyncAt}
       />
     </>
   );

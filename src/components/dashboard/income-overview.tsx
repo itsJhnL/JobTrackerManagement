@@ -32,7 +32,7 @@ interface IncomeOverviewProps {
 }
 
 const SOURCE_LABELS: Record<string, string> = {
-  frankfurter: "European Central Bank (frankfurter.app)",
+  frankfurter: "European Central Bank (frankfurter.dev)",
   "exchangerate-api": "ExchangeRate-API (open.er-api.com)",
 };
 

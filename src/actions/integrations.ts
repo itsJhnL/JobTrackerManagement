@@ -26,6 +26,8 @@ import { uuid } from "@/lib/validations/common";
 import { trackCalendarEventSchema } from "@/lib/validations/interview";
 import { platformFromMeetingUrl } from "@/lib/integrations/calendar-detect";
 import { normalize } from "@/lib/integrations/matching";
+import { EMAIL_READ_KEY } from "@/lib/inbox";
+import type { Json } from "@/lib/supabase/database.types";
 
 function revalidate() {
   revalidatePath("/", "layout");
@@ -413,5 +415,47 @@ export async function trackCalendarEvent(
     return ok({ interviewId: interview.id, applicationId });
   } catch (e) {
     return fail(describe(e));
+  }
+}
+
+/** Marks detected emails as read (opened). Pass ids, or nothing for all unread. */
+export async function markEmailsRead(
+  input?: unknown,
+): Promise<ActionResult<{ count: number }>> {
+  const parsed = z.array(uuid).max(500).optional().safeParse(input);
+  if (!parsed.success) return fromZodError(parsed.error);
+  try {
+    const { user, supabase } = await requireUserForAction();
+    let q = supabase
+      .from("email_messages")
+      .select("id, extracted")
+      .eq("user_id", user.id)
+      .eq("review_status", "pending")
+      .is(`extracted->>${EMAIL_READ_KEY}`, null);
+    if (parsed.data) q = q.in("id", parsed.data);
+    const { data, error } = await q.limit(500);
+    if (error) return fail(error.message);
+    const readAt = new Date().toISOString();
+    // `extracted` is jsonb: merge the flag into what is already there.
+    const results = await Promise.all(
+      (data ?? []).map((e) =>
+        supabase
+          .from("email_messages")
+          .update({
+            extracted: {
+              ...((e.extracted as Record<string, Json> | null) ?? {}),
+              [EMAIL_READ_KEY]: readAt,
+            },
+          })
+          .eq("id", e.id)
+          .eq("user_id", user.id),
+      ),
+    );
+    const failed = results.find((r) => r.error);
+    if (failed?.error) return fail(failed.error.message);
+    revalidatePath("/", "layout");
+    return ok({ count: data?.length ?? 0 });
+  } catch (e) {
+    return fromUnknownError(e);
   }
 }

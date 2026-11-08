@@ -19,6 +19,23 @@ export const RATE_BASE = "USD";
 /** Consider cached rates fresh enough to skip a provider call for this long. */
 export const RATE_REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000;
 
+/**
+ * Minimum gap between automatic provider calls from this server instance.
+ * Over weekends the providers keep returning a rate date we already stored,
+ * so the stored fetched_at does not move; this stops every page load from
+ * calling the providers again.
+ */
+const AUTO_REFRESH_COOLDOWN_MS = 60 * 60 * 1000;
+let lastAutoRefreshAt = 0;
+
+/** Message from an Error or a Supabase/PostgREST error object. */
+function errorMessage(e: unknown, fallback: string) {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e && typeof e.message === "string")
+    return e.message;
+  return fallback;
+}
+
 export interface LatestRate {
   quote: string;
   rate: number;
@@ -110,8 +127,12 @@ export async function refreshExchangeRates(
   errors: { source: string; message: string }[];
 }> {
   const current = await getLatestRates(supabase);
-  if (!options.force && !isRefreshDue(current))
+  if (
+    !options.force &&
+    (!isRefreshDue(current) || Date.now() - lastAutoRefreshAt < AUTO_REFRESH_COOLDOWN_MS)
+  )
     return { snapshot: current, refreshed: false, errors: [] };
+  if (!options.force) lastAutoRefreshAt = Date.now();
 
   const symbols = CURRENCIES.filter((c) => c !== RATE_BASE);
   const { results, errors } = await fetchRatesWithFallback(RATE_BASE, symbols);
@@ -129,9 +150,12 @@ export async function refreshExchangeRates(
   );
 
   if (rows.length) {
+    // Insert-only: RLS allows inserts but not updates (history is append-only),
+    // so a rate we already stored for that date and source is simply skipped.
+    // Updating it would be rejected by RLS.
     const { error } = await supabase.from("exchange_rates").upsert(rows, {
       onConflict: "base_currency,quote_currency,rate_date,source",
-      ignoreDuplicates: false,
+      ignoreDuplicates: true,
     });
     if (error) throw error;
   }
@@ -161,7 +185,7 @@ export async function getRatesEnsuringFresh(
     const snapshot = await getLatestRates(supabase).catch(() => snapshotFromRows([]));
     return {
       snapshot,
-      error: e instanceof Error ? e.message : "Exchange rates temporarily unavailable",
+      error: errorMessage(e, "Exchange rates temporarily unavailable"),
     };
   }
 }

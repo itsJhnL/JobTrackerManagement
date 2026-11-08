@@ -248,7 +248,7 @@ export function IntegrationsSection({
                 onClick={() => startGoogleSync("gmail", () => router.refresh())}
               >
                 <RefreshCw className={cn(syncing.gmail && "animate-spin")} />{" "}
-                {syncing.gmail ? "Syncing Gmail�" : "Sync Gmail now"}
+                {syncing.gmail ? "Syncing Gmail…" : "Sync Gmail now"}
               </Button>
             </div>
           </CardContent>
@@ -286,7 +286,7 @@ export function IntegrationsSection({
                 onClick={() => startGoogleSync("calendar", () => router.refresh())}
               >
                 <RefreshCw className={cn(syncing.calendar && "animate-spin")} />{" "}
-                {syncing.calendar ? "Syncing Calendar�" : "Sync Calendar now"}
+                {syncing.calendar ? "Syncing Calendar…" : "Sync Calendar now"}
               </Button>
             </div>
           </CardContent>

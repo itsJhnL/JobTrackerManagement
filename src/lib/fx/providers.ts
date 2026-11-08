@@ -1,7 +1,7 @@
 /**
  * Exchange-rate providers. No API keys, no hardcoded rates.
  *
- * - frankfurter  : European Central Bank reference rates via api.frankfurter.app.
+ * - frankfurter  : European Central Bank reference rates via api.frankfurter.dev.
  *                  Updated once per working day (around 16:00 CET). Supports PHP.
  * - exchangerate-api : open.er-api.com free endpoint. Updated daily; the
  *                  response carries its own last/next update timestamps.
@@ -50,9 +50,9 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
 export const frankfurterProvider: RateProvider = {
   name: "frankfurter",
   description:
-    "European Central Bank reference rates (frankfurter.app), updated once per working day",
+    "European Central Bank reference rates (frankfurter.dev), updated once per working day",
   async fetchLatest(base, symbols, signal) {
-    const url = `https://api.frankfurter.app/latest?from=${encodeURIComponent(base)}&to=${symbols.map(encodeURIComponent).join(",")}`;
+    const url = `https://api.frankfurter.dev/v1/latest?from=${encodeURIComponent(base)}&to=${symbols.map(encodeURIComponent).join(",")}`;
     const json = await getJson<{
       base: string;
       date: string;

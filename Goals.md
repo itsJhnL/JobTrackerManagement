@@ -42,6 +42,7 @@ What "done" means for this project, in priority order. When two goals conflict, 
 - Calendar interview detection is rule-based (title keywords, organizer domain, company names). Events that look like interviews but match no application are offered as suggestions on the Interviews page rather than tracked automatically.
 - Job links are read on the server. Sites that require sign-in or render only in the browser can't be read; the user is told to paste the text instead.
 - Work arrangement (remote/hybrid/on-site) is stored at the start of `location` because `applications` has no dedicated column yet.
+- Inbox updates arrive by polling (about once a minute, and immediately on tab focus), not push. A background Gmail sync costs one AI call per new email, so it runs at most every 10 minutes while the app is open; nothing syncs while the app is closed.
 - Migration `0003_interview_calendar_event_unique.sql` (optional hardening) is not applied to the live project yet.
 
 - Google OAuth reaches Google's consent screen with the minimal scopes and rejects forged state, but a full consent → token → Gmail/Calendar sync has not been completed against a real Google account.
