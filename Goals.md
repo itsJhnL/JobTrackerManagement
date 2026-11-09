@@ -36,6 +36,13 @@ What "done" means for this project, in priority order. When two goals conflict, 
 
 | 7 Audit round (2026-11-06) | Perf (router cache, request-scoped client), time-zone picker + consistent TZ rendering, logout hardening, employment income with PHP conversion + FX history, new statuses, Google Gmail/Calendar integration layer, Inbox review, cron | done; Google flows untested without credentials |
 
+## Known gaps (as of 2026-11-09)
+
+- Inbox routing (Inbox / Saved to Applications / Filtered) is verified against the live database with simulated Gmail, and the rules were dry-run on the real mailbox (100 messages: 15 Indeed confirmations, 64 job alerts, 21 for the AI; no recruiter email filtered). The first real sync with the new rules has not been run yet.
+- Gmail sync reads the newest 40 matching messages from the last 14 days per run. Recruiter messages older than that window are never imported (seen with 7TI and Kairos HR); there is no history backfill or thread import yet.
+- Several emails from the same thread appear as separate Inbox rows; there is no thread grouping.
+- The email category and routing decision live in `email_messages.extracted` (jsonb) because the enums have no matching values; a migration would make them first-class columns.
+
 ## Known gaps (as of 2026-11-07)
 
 - Google OAuth now completes against a real account (test user on the consent screen). Gmail and Calendar syncs run in the background; their behaviour on a large real inbox/calendar is only verified with simulated Google responses.

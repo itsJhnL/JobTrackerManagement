@@ -41,6 +41,9 @@ interface GmailBatch {
   fresh: number;
   stored: number;
   recruiting: number;
+  savedToApplications: number;
+  applicationsCreated: number;
+  filtered: number;
   remaining: number;
   aiUnavailable: string | null;
   errors: string[];
@@ -118,6 +121,9 @@ export async function startGoogleSync(kind: GoogleSyncKind, onDone?: () => void)
       let total = 0;
       let done = 0;
       let recruiting = 0;
+      let saved = 0;
+      let created = 0;
+      let filtered = 0;
       let errors: string[] = [];
       let aiBusy = false;
       for (let batch = 0; batch < MAX_GMAIL_BATCHES; batch++) {
@@ -128,6 +134,9 @@ export async function startGoogleSync(kind: GoogleSyncKind, onDone?: () => void)
         }
         done += r.stored;
         recruiting += r.recruiting;
+        saved += r.savedToApplications ?? 0;
+        created += r.applicationsCreated ?? 0;
+        filtered += r.filtered ?? 0;
         errors = r.errors;
         if (r.aiUnavailable) {
           aiBusy = true;
@@ -140,7 +149,20 @@ export async function startGoogleSync(kind: GoogleSyncKind, onDone?: () => void)
           description: "You can keep using the app while this runs.",
         });
       }
-      const message = `Scanned ${scanned}, ${recruiting} recruiting email${recruiting === 1 ? "" : "s"} queued for review`;
+      const message =
+        recruiting || saved || filtered
+          ? `${plural(recruiting, "email")} for your Inbox`
+          : `Scanned ${scanned} emails, nothing new`;
+      const detail = [
+        saved
+          ? `${plural(saved, "application confirmation")} saved to Applications${created ? ` (${created} new)` : ""}`
+          : null,
+        filtered
+          ? `${filtered} job alert${filtered === 1 ? "" : "s"} or other emails filtered out`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(". ");
       const unchecked = total - done;
       if (aiBusy)
         toast.warning("Gemini is busy right now", {
@@ -152,7 +174,7 @@ export async function startGoogleSync(kind: GoogleSyncKind, onDone?: () => void)
           id,
           description: `${errors.length} email${errors.length === 1 ? "" : "s"} could not be processed. Sync again to retry them.`,
         });
-      else toast.success(message, { id, description: undefined });
+      else toast.success(message, { id, description: detail || undefined });
     }
     onDone?.();
   } catch (e) {

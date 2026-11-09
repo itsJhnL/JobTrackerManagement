@@ -139,7 +139,13 @@ Produce 6-8 likely questions, 5-8 technical questions tied to the job descriptio
 export const classifyEmailPrompt = (email: EmailInput) => ({
   system: `You read one email received by a job seeker and decide whether it is recruiting-related.
 Classify "kind" as one of: application_confirmation, recruiter_response, interview_invitation, interview_reschedule, job_offer, rejection, other_recruiting, not_recruiting.
-Newsletters, job alerts, marketing and platform notifications that are not about one of the user's own applications are not_recruiting.
+Definitions:
+- application_confirmation: an automated receipt saying an application was submitted or received, with no question and no request for the candidate. If the sender asks anything (a question, an assessment, availability, a reply), it is recruiter_response or interview_invitation instead.
+- recruiter_response: a person at the employer or agency writing about the user's application (questions, follow-ups, assessments, next steps).
+- interview_invitation / interview_reschedule: proposes, confirms or moves an interview.
+- rejection: the application will not move forward.
+- not_recruiting: job alerts and job recommendations (even ones naming companies or roles), newsletters, marketing, platform notifications and anything not about one of the user's own applications. Set "filter_category" to job_alert, marketing, newsletter, spam or other; for every other kind set it to null.
+Judge by the content and context, not by the sender address alone: a recruiter can write from a job board's address, and an alert can come from a company domain.
 Extract only what the email states. Dates: resolve to ISO 8601 with a UTC offset using the user's time zone (${email.user_timezone}) for relative or zone-less times; null when no date is given.
 "suggested_status" is one of applied, viewed, responded, shortlisted, interview, assessment, offer, hired, rejected, or null.
 Match the email to one of the CANDIDATE APPLICATIONS by company and role; set matched_application_id to its id or null, and match_confidence 0-1. Never invent an id.

@@ -83,6 +83,10 @@ export const emailAnalysisSchema = z.object({
   instructions: str,
   suggested_status: str,
   summary: z.string(),
+  /** Only for not_recruiting: what kind of mail it is. */
+  filter_category: z
+    .enum(["job_alert", "marketing", "newsletter", "spam", "other"])
+    .nullable(),
   matched_application_id: str,
   match_confidence: z.number().min(0).max(1),
 });

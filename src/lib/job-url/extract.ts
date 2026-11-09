@@ -58,6 +58,12 @@ const NAMED_ENTITIES: Record<string, string> = {
   peso: "₱",
   euro: "€",
   pound: "£",
+  copy: "©",
+  reg: "®",
+  trade: "™",
+  zwnj: "",
+  zwj: "",
+  shy: "",
 };
 
 export function decodeEntities(s: string) {

@@ -84,16 +84,15 @@ export interface EmailMessageWithApplication extends EmailMessageRow {
 export async function listEmailMessages(
   supabase: SupabaseServerClient,
   userId: string,
-  options: { review?: EmailMessageRow["review_status"]; limit?: number } = {},
+  options: { review?: EmailMessageRow["review_status"][]; limit?: number } = {},
 ): Promise<EmailMessageWithApplication[]> {
   let q = supabase
     .from("email_messages")
     .select("*, application:applications(id, company_name, job_title, status)")
     .eq("user_id", userId)
-    .neq("classification", "not_recruiting")
     .order("received_at", { ascending: false })
     .limit(options.limit ?? 100);
-  if (options.review) q = q.eq("review_status", options.review);
+  if (options.review?.length) q = q.in("review_status", options.review);
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []) as EmailMessageWithApplication[];

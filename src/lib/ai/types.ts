@@ -154,6 +154,8 @@ export interface EmailAnalysis {
   /** Status the email implies for the application, if any. */
   suggested_status: string | null;
   summary: string;
+  /** For not_recruiting mail: job_alert, marketing, newsletter, spam or other. */
+  filter_category?: "job_alert" | "marketing" | "newsletter" | "spam" | "other" | null;
 }
 
 export interface EmailInput {

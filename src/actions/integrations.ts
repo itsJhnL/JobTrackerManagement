@@ -28,6 +28,11 @@ import { platformFromMeetingUrl } from "@/lib/integrations/calendar-detect";
 import { normalize } from "@/lib/integrations/matching";
 import { EMAIL_READ_KEY } from "@/lib/inbox";
 import type { Json } from "@/lib/supabase/database.types";
+import { EMAIL_RULES_VERSION, platformFromSender } from "@/lib/integrations/email-rules";
+import {
+  findOrCreateApplication,
+  logEmailCommunication,
+} from "@/lib/integrations/record-application";
 
 function revalidate() {
   revalidatePath("/", "layout");
@@ -77,23 +82,37 @@ export async function disconnectGoogle(): Promise<ActionResult> {
   }
 }
 
-const confirmSchema = z.object({
-  id: uuid,
-  application_id: uuid,
-  /** Optional overrides reviewed by the user. */
-  create_interview: z.boolean().default(false),
-  interview_title: z.string().trim().max(200).optional(),
-  interview_type: z.enum(INTERVIEW_TYPES).default("video"),
-  scheduled_at: z.string().trim().optional(),
-  timezone: z.string().trim().max(80).optional(),
-  platform: z.string().trim().max(200).optional(),
-  meeting_url: z.string().trim().max(1000).optional(),
-  interviewer: z.string().trim().max(200).optional(),
-  notes: z.string().trim().max(5000).optional(),
-  add_to_calendar: z.boolean().default(false),
-  apply_status: z.enum(APPLICATION_STATUSES).nullable().optional(),
-  log_communication: z.boolean().default(true),
-});
+const confirmSchema = z
+  .object({
+    id: uuid,
+    /** Existing application, or `new_application` to create one, or neither for "not about a specific job". */
+    application_id: uuid.optional(),
+    new_application: z
+      .object({
+        company_name: z.string().trim().min(1, "Enter the company").max(200),
+        job_title: z.string().trim().min(1, "Enter the job title").max(200),
+      })
+      .optional(),
+    /** Optional overrides reviewed by the user. */
+    create_interview: z.boolean().default(false),
+    interview_title: z.string().trim().max(200).optional(),
+    interview_type: z.enum(INTERVIEW_TYPES).default("video"),
+    scheduled_at: z.string().trim().optional(),
+    timezone: z.string().trim().max(80).optional(),
+    platform: z.string().trim().max(200).optional(),
+    meeting_url: z.string().trim().max(1000).optional(),
+    interviewer: z.string().trim().max(200).optional(),
+    notes: z.string().trim().max(5000).optional(),
+    add_to_calendar: z.boolean().default(false),
+    apply_status: z.enum(APPLICATION_STATUSES).nullable().optional(),
+    log_communication: z.boolean().default(true),
+  })
+  .refine((v) => !(v.application_id && v.new_application), {
+    message: "Choose an application or create a new one, not both",
+  })
+  .refine((v) => !v.create_interview || v.application_id || v.new_application, {
+    message: "Choose the application for this interview",
+  });
 
 /**
  * User-approved handling of a detected email: link it to an application,
@@ -117,10 +136,42 @@ export async function confirmEmail(
     if (error) return fail(error.message);
     if (!email) return fail("Email not found.");
 
+    // Not about a specific job: mark it handled without linking anything.
+    if (!v.application_id && !v.new_application) {
+      const { error: upErr } = await supabase
+        .from("email_messages")
+        .update({ review_status: "confirmed", application_id: null })
+        .eq("id", email.id)
+        .eq("user_id", user.id);
+      if (upErr) return fail(upErr.message);
+      revalidate();
+      return ok({ interviewId: null });
+    }
+
+    let applicationId = v.application_id ?? null;
+    if (v.new_application) {
+      // Reuses an application for the same company and role instead of duplicating it.
+      const saved = await findOrCreateApplication(
+        supabase,
+        user.id,
+        {
+          company_name: v.new_application.company_name,
+          job_title: v.new_application.job_title,
+          platform: platformFromSender(email.from_email),
+          applied_at: email.received_at,
+        },
+        {
+          status: (v.apply_status as ApplicationStatus | null | undefined) ?? "applied",
+          source: "an email in your Inbox",
+        },
+      );
+      applicationId = saved.applicationId;
+    }
+
     const { data: app } = await supabase
       .from("applications")
       .select("id, company_name, job_title, status")
-      .eq("id", v.application_id)
+      .eq("id", applicationId!)
       .eq("user_id", user.id)
       .maybeSingle();
     if (!app) return fail("Application not found.");
@@ -190,17 +241,8 @@ export async function confirmEmail(
         .eq("user_id", user.id);
     }
 
-    if (v.log_communication) {
-      await supabase.from("communications").insert({
-        user_id: user.id,
-        application_id: app.id,
-        communication_type: "email",
-        direction: "inbound",
-        subject: email.subject,
-        message: email.snippet,
-        communication_date: email.received_at ?? new Date().toISOString(),
-      });
-    }
+    if (v.log_communication)
+      await logEmailCommunication(supabase, user.id, app.id, email);
 
     const { error: upErr } = await supabase
       .from("email_messages")
@@ -455,6 +497,52 @@ export async function markEmailsRead(
     if (failed?.error) return fail(failed.error.message);
     revalidatePath("/", "layout");
     return ok({ count: data?.length ?? 0 });
+  } catch (e) {
+    return fromUnknownError(e);
+  }
+}
+
+/**
+ * Manual correction: puts a filtered email, or a confirmation that was saved
+ * to Applications, back in the Inbox. Later syncs leave it there. An
+ * application already created from it is kept (archive it if unwanted).
+ */
+export async function moveEmailToInbox(input: unknown): Promise<ActionResult> {
+  const parsed = uuid.safeParse(input);
+  if (!parsed.success) return fromZodError(parsed.error);
+  try {
+    const { user, supabase } = await requireUserForAction();
+    const { data: email, error } = await supabase
+      .from("email_messages")
+      .select("id, classification, extracted")
+      .eq("id", parsed.data)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error) return fail(error.message);
+    if (!email) return fail("Email not found.");
+    const extracted = (email.extracted as Record<string, Json> | null) ?? {};
+    const { error: upErr } = await supabase
+      .from("email_messages")
+      .update({
+        review_status: "pending",
+        classification:
+          email.classification === "not_recruiting"
+            ? "other_recruiting"
+            : email.classification,
+        extracted: {
+          ...extracted,
+          destination: "inbox",
+          category: null,
+          route_reason: "Moved to the Inbox by you",
+          manual_override: "inbox",
+          rules_version: EMAIL_RULES_VERSION,
+        },
+      })
+      .eq("id", email.id)
+      .eq("user_id", user.id);
+    if (upErr) return fail(upErr.message);
+    revalidate();
+    return ok(undefined);
   } catch (e) {
     return fromUnknownError(e);
   }

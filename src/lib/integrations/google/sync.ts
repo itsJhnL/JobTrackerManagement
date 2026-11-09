@@ -1,10 +1,11 @@
 import "server-only";
 
-import { AiError, type AiProvider } from "@/lib/ai/types";
+import { AiError, type AiProvider, type EmailAnalysis } from "@/lib/ai/types";
 import type { ApplicationStatus } from "@/lib/constants";
 import { logActivity } from "@/lib/data/activities";
 import type { SupabaseServerClient } from "@/lib/supabase/server";
 import type {
+  EmailMessageRow,
   IntegrationAccountRow,
   InterviewRow,
   Json,
@@ -18,16 +19,44 @@ import {
   APP_EVENT_KEY,
 } from "./calendar";
 import { getAccessToken } from "./client";
-import { getMessage, listRecentMessages } from "./gmail";
+import { getMessage, listRecentMessages, type GmailMessage } from "./gmail";
 import { detectInterview } from "../calendar-detect";
-import { AUTO_LINK_CONFIDENCE, matchEmailToApplication } from "../matching";
+import { cleanSubject } from "../email-content";
+import {
+  EMAIL_RULES_VERSION,
+  preClassify,
+  routeAnalysis,
+  type RouteDecision,
+  type RuleInput,
+} from "../email-rules";
+import {
+  AUTO_LINK_CONFIDENCE,
+  emailDomain,
+  matchEmailToApplication,
+  normalize,
+  type MatchCandidate,
+} from "../matching";
+import {
+  findOrCreateApplication,
+  keyedLock,
+  logEmailCommunication,
+} from "../record-application";
 
 export interface GmailSyncResult {
   scanned: number;
   /** New messages found this run (not yet stored). */
   fresh: number;
   stored: number;
+  /** New emails that went to the Inbox for review. */
   recruiting: number;
+  /** Application confirmations saved to Applications (not shown in the Inbox). */
+  savedToApplications: number;
+  /** Applications created from confirmations this run. */
+  applicationsCreated: number;
+  /** Job alerts, marketing and similar, stored under Filtered. */
+  filtered: number;
+  /** Previously stored emails re-checked with the current rules. */
+  reprocessed: number;
   skippedExisting: number;
   /** New messages left for the next run because the time budget ran out. */
   remaining: number;
@@ -41,11 +70,21 @@ export interface GmailSyncResult {
 
 /** Messages classified at once. Keeps Gemini under typical per-minute limits. */
 const GMAIL_CONCURRENCY = 4;
+/** Stored emails re-checked per run (old rows from before the current rules). */
+const REPROCESS_BATCH = 30;
+
+type Candidate = MatchCandidate & { id: string };
 
 /**
- * Pulls recent recruiting-looking messages, classifies new ones with the AI
- * provider, matches them to applications and stores them for review.
- * Idempotent: (user_id, gmail_message_id) is unique, so re-runs skip stored mail.
+ * Pulls recent recruiting-looking messages and files each one:
+ *  - fixed rules first (Indeed confirmations, job alerts, the user's own mail),
+ *    so those never cost an AI call and never depend on the model;
+ *  - the AI classifies the rest, and routeAnalysis() keeps anything uncertain
+ *    or from a known company in the Inbox;
+ *  - application confirmations are saved to the matching application (created
+ *    if needed, never duplicated) instead of the Inbox.
+ * Idempotent: (user_id, gmail_message_id) is unique, so re-runs skip stored
+ * mail, and saving a confirmation twice finds the same application.
  */
 export async function syncGmail(
   supabase: SupabaseServerClient,
@@ -66,133 +105,154 @@ export async function syncGmail(
     fresh: 0,
     stored: 0,
     recruiting: 0,
+    savedToApplications: 0,
+    applicationsCreated: 0,
+    filtered: 0,
+    reprocessed: 0,
     skippedExisting: 0,
     remaining: 0,
     aiUnavailable: null,
     errors: [],
   };
   const token = await getAccessToken(supabase, account);
+  const lock = keyedLock();
+  const ctx: FileContext = { supabase, userId, lock, result };
+
+  // Emails stored before the current rules (or whose save to Applications
+  // failed) are re-checked first; this needs Gmail but no AI.
+  await reprocessStoredEmails(ctx, token, account, deadline);
 
   const summaries = await listRecentMessages(token, {
     newerThanDays: options.newerThanDays ?? 14,
     maxResults: options.maxMessages ?? 40,
   });
   result.scanned = summaries.length;
-  if (summaries.length === 0) {
-    await touch(supabase, account.id, {
-      last_gmail_sync_at: new Date().toISOString(),
-      last_error: null,
-    });
-    return result;
-  }
 
-  const { data: existing } = await supabase
-    .from("email_messages")
-    .select("gmail_message_id")
-    .eq("user_id", userId)
-    .in(
-      "gmail_message_id",
-      summaries.map((m) => m.id),
-    );
+  const { data: existing } = summaries.length
+    ? await supabase
+        .from("email_messages")
+        .select("gmail_message_id")
+        .eq("user_id", userId)
+        .in(
+          "gmail_message_id",
+          summaries.map((m) => m.id),
+        )
+    : { data: [] };
   const known = new Set((existing ?? []).map((e) => e.gmail_message_id));
   const fresh = summaries.filter((m) => !known.has(m.id));
   result.skippedExisting = summaries.length - fresh.length;
   result.fresh = fresh.length;
 
-  const { data: apps } = await supabase
-    .from("applications")
-    .select("id, company_name, job_title, job_url, contacts(email)")
-    .eq("user_id", userId)
-    .is("archived_at", null);
-  const candidates = (apps ?? []).map((a) => ({
-    id: a.id,
-    company_name: a.company_name,
-    job_title: a.job_title,
-    contact_emails: ((a.contacts as { email: string | null }[] | null) ?? [])
-      .map((c) => c.email)
-      .filter((e): e is string => !!e),
-    domains: domainFromUrl(a.job_url),
-  }));
+  const candidates = fresh.length ? await loadCandidates(supabase, userId) : [];
 
   const processOne = async (summary: (typeof fresh)[number]) => {
     try {
       const msg = await getMessage(token, summary.id);
-      const analysis = await ai.classifyEmail({
-        from_name: msg.from.name,
-        from_email: msg.from.email,
-        subject: msg.subject,
-        received_at: msg.receivedAt,
-        text: msg.text,
-        candidates: candidates.map(({ id, company_name, job_title }) => ({
-          id,
-          company_name,
-          job_title,
-        })),
-        user_timezone: userTimezone,
-      });
+      const input = ruleInputFromMessage(msg, account);
 
-      // Deterministic match first; the model's pick is only used when it agrees or nothing else matched.
-      const det = matchEmailToApplication(
-        {
+      let decision = preClassify(input);
+      let analysis: StoredAnalysis;
+      let applicationId: string | null = null;
+      let matchConfidence: number | null = null;
+      let matchInfo: { reason: string; alternatives: { id: string; score: number }[] } = {
+        reason: "",
+        alternatives: [],
+      };
+
+      if (decision) {
+        analysis = analysisFromRule(decision, msg.subject);
+      } else {
+        const ai_ = await ai.classifyEmail({
+          from_name: msg.from.name,
           from_email: msg.from.email,
           subject: msg.subject,
+          received_at: msg.receivedAt,
           text: msg.text,
-          extracted: { company: analysis.company, job_title: analysis.job_title },
-        },
-        candidates,
-      );
-      const validModelPick =
-        analysis.matched_application_id &&
-        candidates.some((c) => c.id === analysis.matched_application_id)
-          ? analysis.matched_application_id
-          : null;
-      let applicationId: string | null = det.applicationId;
-      let matchConfidence = det.confidence;
-      if (
-        !applicationId &&
-        validModelPick &&
-        analysis.match_confidence >= AUTO_LINK_CONFIDENCE &&
-        det.alternatives.length <= 1
-      ) {
-        applicationId = validModelPick;
-        matchConfidence = analysis.match_confidence;
+          candidates: candidates.map(({ id, company_name, job_title }) => ({
+            id,
+            company_name,
+            job_title,
+          })),
+          user_timezone: userTimezone,
+        });
+        // Deterministic match first; the model's pick is only used when it agrees or nothing else matched.
+        const det = matchEmailToApplication(
+          {
+            from_email: msg.from.email,
+            subject: msg.subject,
+            text: msg.text,
+            extracted: { company: ai_.company, job_title: ai_.job_title },
+          },
+          candidates,
+        );
+        applicationId = det.applicationId;
+        matchConfidence = det.confidence;
+        const validModelPick =
+          ai_.matched_application_id &&
+          candidates.some((c) => c.id === ai_.matched_application_id)
+            ? ai_.matched_application_id
+            : null;
+        if (
+          !applicationId &&
+          validModelPick &&
+          ai_.match_confidence >= AUTO_LINK_CONFIDENCE &&
+          det.alternatives.length <= 1
+        ) {
+          applicationId = validModelPick;
+          matchConfidence = ai_.match_confidence;
+        }
+        matchInfo = { reason: det.reason, alternatives: det.alternatives };
+        decision = routeAnalysis(ai_, input, det);
+        analysis = ai_;
       }
 
-      const isRecruiting = analysis.kind !== "not_recruiting";
-      const { error } = await supabase.from("email_messages").insert({
-        user_id: userId,
-        account_id: account.id,
-        gmail_message_id: msg.id,
-        gmail_thread_id: msg.threadId,
-        from_name: msg.from.name,
-        from_email: msg.from.email,
-        subject: msg.subject,
-        snippet: msg.snippet.slice(0, 500),
-        received_at: msg.receivedAt,
-        classification: analysis.kind,
-        confidence: analysis.confidence,
-        extracted: {
-          ...analysis,
-          match_reason: det.reason,
-          alternatives: det.alternatives,
-        } as unknown as Json,
-        application_id: applicationId,
-        match_confidence: matchConfidence,
-        review_status: isRecruiting ? "pending" : "dismissed",
-        processed_at: new Date().toISOString(),
-      });
-      if (error) throw error;
-      result.stored += 1;
-      if (isRecruiting) {
-        result.recruiting += 1;
-        await logActivity(supabase, {
-          userId,
-          applicationId,
-          type: "email_detected",
-          title: `${labelFor(analysis.kind)} detected: ${msg.subject}`.slice(0, 200),
-          metadata: { gmail_message_id: msg.id },
-        });
+      const { data: row, error } = await supabase
+        .from("email_messages")
+        .insert({
+          user_id: userId,
+          account_id: account.id,
+          gmail_message_id: msg.id,
+          gmail_thread_id: msg.threadId,
+          from_name: msg.from.name,
+          from_email: msg.from.email,
+          subject: msg.subject,
+          snippet: msg.snippet.slice(0, 500),
+          received_at: msg.receivedAt,
+          classification: decision.kind,
+          confidence: analysis.confidence,
+          extracted: {
+            ...analysis,
+            kind: decision.kind,
+            match_reason: matchInfo.reason,
+            alternatives: matchInfo.alternatives,
+            ...routingFields(decision),
+          } as unknown as Json,
+          application_id: decision.destination === "filtered" ? null : applicationId,
+          match_confidence: matchConfidence,
+          // Confirmations stay "pending" until they are saved to Applications,
+          // so a failed save leaves them visible instead of lost.
+          review_status: decision.destination === "filtered" ? "dismissed" : "pending",
+          processed_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+      if (error) {
+        // Another sync stored this message a moment ago.
+        if ((error as { code?: string }).code === "23505") {
+          result.skippedExisting += 1;
+          return;
+        }
+        throw error;
       }
+      result.stored += 1;
+      await fileEmail(ctx, {
+        id: row.id,
+        subject: msg.subject,
+        snippet: msg.snippet,
+        received_at: msg.receivedAt,
+        applicationId,
+        decision,
+      });
     } catch (e) {
       if (e instanceof AiError && e.retryable) {
         // Busy or rate limited after retries: stop starting new emails instead of
@@ -200,7 +260,7 @@ export async function syncGmail(
         result.aiUnavailable ??= e.message;
         return;
       }
-      result.errors.push(`${summary.id}: ${e instanceof Error ? e.message : String(e)}`);
+      result.errors.push(`${summary.id}: ${describeError(e)}`);
     }
   };
 
@@ -227,6 +287,341 @@ export async function syncGmail(
     status: "connected",
   });
   return result;
+}
+
+interface FileContext {
+  supabase: SupabaseServerClient;
+  userId: string;
+  lock: ReturnType<typeof keyedLock>;
+  result: GmailSyncResult;
+}
+
+type StoredAnalysis = Omit<EmailAnalysis, "kind"> & { kind: string };
+
+function ruleInputFromMessage(
+  msg: GmailMessage,
+  account: IntegrationAccountRow,
+): RuleInput {
+  return {
+    from_email: msg.from.email,
+    from_name: msg.from.name,
+    subject: msg.subject,
+    text: msg.text,
+    links: msg.links,
+    bulk: msg.bulk,
+    received_at: msg.receivedAt,
+    account_email: account.account_email,
+  };
+}
+
+/** The stored analysis for an email decided by a rule (no AI call). */
+function analysisFromRule(decision: RouteDecision, subject: string): StoredAnalysis {
+  const c = decision.confirmation;
+  return {
+    kind: decision.kind,
+    confidence: 1,
+    company: c?.company ?? null,
+    job_title: c?.job_title ?? null,
+    recruiter_name: null,
+    recruiter_email: null,
+    interview_start: null,
+    interview_end: null,
+    interview_timezone: null,
+    interview_platform: null,
+    meeting_url: null,
+    instructions: null,
+    suggested_status: c ? "applied" : null,
+    summary: c ? confirmationSummary(c) : `${decision.reason}: ${subject}`.slice(0, 300),
+    filter_category:
+      decision.category && decision.category !== "sent_by_you" ? decision.category : null,
+  };
+}
+
+/** One readable line for an application confirmation. */
+function confirmationSummary(c: NonNullable<RouteDecision["confirmation"]>) {
+  return `Application submitted on ${c.platform}${c.company ? ` to ${c.company}` : ""}${c.job_title ? ` for ${c.job_title}` : ""}${c.location ? ` (${c.location})` : ""}.`;
+}
+
+/** Routing facts kept in `extracted` (the enum columns cannot hold them). */
+function routingFields(decision: RouteDecision) {
+  return {
+    destination: decision.destination,
+    category: decision.category,
+    route_reason: decision.reason,
+    confirmation: decision.confirmation ?? null,
+    rules_version: EMAIL_RULES_VERSION,
+  };
+}
+
+/**
+ * Acts on a stored email's routing decision: saves confirmations to their
+ * application, logs Inbox arrivals, counts filtered mail.
+ */
+async function fileEmail(
+  ctx: FileContext,
+  email: {
+    id: string;
+    subject: string | null;
+    snippet: string | null;
+    received_at: string | null;
+    applicationId: string | null;
+    decision: RouteDecision;
+  },
+) {
+  const { supabase, userId, result } = ctx;
+  const { decision } = email;
+
+  if (decision.destination === "filtered") {
+    result.filtered += 1;
+    return;
+  }
+
+  if (decision.destination === "applications" && decision.confirmation) {
+    const c = decision.confirmation;
+    try {
+      const key = c.job_key ?? `${normalize(c.company)}|${normalize(c.job_title)}`;
+      const saved = await ctx.lock(key, () =>
+        findOrCreateApplication(
+          supabase,
+          userId,
+          {
+            company_name: c.company!,
+            job_title: c.job_title!,
+            platform: c.platform,
+            job_url: c.job_url,
+            job_key: c.job_key,
+            location: c.location,
+            applied_at: c.applied_at,
+          },
+          { status: "applied", source: `a ${c.platform} confirmation email` },
+        ),
+      );
+      // Gmail's preview of automated receipts is often template padding; log a readable summary.
+      await logEmailCommunication(supabase, userId, saved.applicationId, {
+        ...email,
+        snippet: confirmationSummary(c),
+      });
+      const { error } = await supabase
+        .from("email_messages")
+        .update({
+          application_id: saved.applicationId,
+          match_confidence: 1,
+          review_status: "confirmed",
+        })
+        .eq("id", email.id)
+        .eq("user_id", userId);
+      if (error) throw error;
+      result.savedToApplications += 1;
+      if (saved.created) result.applicationsCreated += 1;
+      if (!saved.created)
+        await logActivity(supabase, {
+          userId,
+          applicationId: saved.applicationId,
+          type: "email_detected",
+          title: `Application confirmation received: ${email.subject ?? ""}`.slice(
+            0,
+            200,
+          ),
+        });
+    } catch (e) {
+      // Leave it in the Inbox (still pending) with the reason; the next sync retries.
+      result.errors.push(
+        `${email.id}: could not save to Applications: ${describeError(e)}`,
+      );
+      result.recruiting += 1;
+    }
+    return;
+  }
+
+  result.recruiting += 1;
+  await logActivity(supabase, {
+    userId,
+    applicationId: email.applicationId,
+    type: "email_detected",
+    title: `${labelFor(decision.kind)} detected: ${email.subject ?? ""}`.slice(0, 200),
+  });
+}
+
+async function loadCandidates(
+  supabase: SupabaseServerClient,
+  userId: string,
+): Promise<Candidate[]> {
+  const { data: apps } = await supabase
+    .from("applications")
+    .select("id, company_name, job_title, job_url, contacts(email)")
+    .eq("user_id", userId)
+    .is("archived_at", null);
+  return (apps ?? []).map((a) => ({
+    id: a.id,
+    company_name: a.company_name,
+    job_title: a.job_title,
+    contact_emails: ((a.contacts as { email: string | null }[] | null) ?? [])
+      .map((c) => c.email)
+      .filter((e): e is string => !!e),
+    domains: domainFromUrl(a.job_url),
+  }));
+}
+
+/**
+ * Re-checks Inbox emails stored before the current rules, and retries
+ * confirmations whose save to Applications failed. Never touches an email the
+ * user moved or confirmed by hand. Bounded per run; no AI calls.
+ */
+async function reprocessStoredEmails(
+  ctx: FileContext,
+  token: string,
+  account: IntegrationAccountRow,
+  deadline: number,
+) {
+  const { supabase, userId, result } = ctx;
+  const columns =
+    "id, gmail_message_id, gmail_thread_id, from_email, from_name, subject, snippet, received_at, classification, confidence, extracted";
+  const [legacy, stuck] = await Promise.all([
+    supabase
+      .from("email_messages")
+      .select(columns)
+      .eq("user_id", userId)
+      .eq("review_status", "pending")
+      .is("extracted->>rules_version", null)
+      .order("received_at", { ascending: false })
+      .limit(REPROCESS_BATCH),
+    supabase
+      .from("email_messages")
+      .select(columns)
+      .eq("user_id", userId)
+      .eq("review_status", "pending")
+      .eq("extracted->>destination", "applications")
+      .limit(REPROCESS_BATCH),
+  ]);
+  if (legacy.error) throw legacy.error;
+  if (stuck.error) throw stuck.error;
+  const rows = [...(legacy.data ?? []), ...(stuck.data ?? [])];
+
+  for (const row of rows) {
+    if (Date.now() >= deadline) break;
+    const extracted = (row.extracted ?? {}) as Record<string, unknown>;
+    if (extracted.manual_override) continue;
+    try {
+      const subject = cleanSubject(row.subject);
+      let decision: RouteDecision | null = null;
+      const isOwn =
+        !!row.from_email &&
+        !!account.account_email &&
+        row.from_email.toLowerCase() === account.account_email.toLowerCase();
+
+      if (isOwn) {
+        // Your reply is only filed away when the other side of the conversation
+        // is already in the app. Otherwise it is the only trace of that thread
+        // (e.g. the recruiter wrote before the sync window), so it stays visible.
+        const { data: others } = row.gmail_thread_id
+          ? await supabase
+              .from("email_messages")
+              .select("id")
+              .eq("user_id", userId)
+              .eq("gmail_thread_id", row.gmail_thread_id)
+              .neq("from_email", row.from_email!)
+              .limit(1)
+          : { data: [] };
+        decision = others?.length
+          ? preClassify({
+              from_email: row.from_email,
+              subject,
+              text: "",
+              received_at: row.received_at ?? new Date().toISOString(),
+              account_email: account.account_email,
+            })
+          : {
+              kind: row.classification ?? "other_recruiting",
+              destination: "inbox",
+              category: null,
+              reason:
+                "Your own reply. The recruiter's message in this thread is not in the app, so it stays here; dismiss it when you no longer need it.",
+            };
+      } else if (
+        row.classification === "application_confirmation" ||
+        extracted.destination === "applications" ||
+        /(?:^|\.)indeed\.com$/.test(emailDomain(row.from_email) ?? "")
+      ) {
+        // Re-read the full message: the stored snippet lacks what the rules need.
+        let msg: GmailMessage | null = null;
+        try {
+          msg = await getMessage(token, row.gmail_message_id);
+        } catch {
+          msg = null; // deleted in Gmail: judge from what is stored
+        }
+        const input: RuleInput = msg
+          ? ruleInputFromMessage(msg, account)
+          : {
+              from_email: row.from_email,
+              subject,
+              text: row.snippet ?? "",
+              received_at: row.received_at ?? new Date().toISOString(),
+              account_email: account.account_email,
+            };
+        decision = preClassify(input);
+        if (!decision && row.classification === "application_confirmation")
+          decision = routeAnalysis(
+            {
+              kind: "application_confirmation",
+              confidence: Number(row.confidence ?? 0),
+              company: (extracted.company as string | null) ?? null,
+              job_title: (extracted.job_title as string | null) ?? null,
+            },
+            input,
+            { applicationId: null, confidence: 0, reason: "" },
+          );
+      }
+
+      const patch: Partial<EmailMessageRow> = {
+        extracted: {
+          ...extracted,
+          ...(decision
+            ? {
+                ...routingFields(decision),
+                kind: decision.kind,
+                ...(decision.confirmation
+                  ? {
+                      company: decision.confirmation.company,
+                      job_title: decision.confirmation.job_title,
+                    }
+                  : {}),
+              }
+            : { rules_version: EMAIL_RULES_VERSION }),
+        } as unknown as Json,
+      };
+      if (subject !== row.subject) patch.subject = subject;
+      if (decision) {
+        patch.classification = decision.kind;
+        if (decision.destination === "filtered") patch.review_status = "dismissed";
+      }
+      const { error } = await supabase
+        .from("email_messages")
+        .update(patch)
+        .eq("id", row.id)
+        .eq("user_id", userId);
+      if (error) throw error;
+      result.reprocessed += 1;
+
+      if (decision?.destination === "applications") {
+        await fileEmail(ctx, {
+          id: row.id,
+          subject,
+          snippet: row.snippet,
+          received_at: row.received_at,
+          applicationId: null,
+          decision,
+        });
+      }
+    } catch (e) {
+      result.errors.push(`${row.gmail_message_id}: ${describeError(e)}`);
+    }
+  }
+}
+
+function describeError(e: unknown) {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e) return String(e.message);
+  return String(e);
 }
 
 function labelFor(kind: string) {
