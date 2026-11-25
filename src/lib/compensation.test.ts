@@ -213,6 +213,8 @@ describe("employment income", () => {
   it("only hired + active employment counts", () => {
     expect(isActiveEmployment(job({ status: "offer" }))).toBe(false);
     expect(isActiveEmployment(job({ status: "rejected" }))).toBe(false);
+    // Still hired but paused (per diem, waiting to be called): no estimated income.
+    expect(isActiveEmployment(job({ status: "on_hold" }))).toBe(false);
     expect(isActiveEmployment(job({ status: "withdrawn" }))).toBe(false);
     expect(isActiveEmployment(job({ employment_active: false }))).toBe(false);
     expect(isActiveEmployment(job({ archived_at: "2026-01-01T00:00:00Z" }))).toBe(false);

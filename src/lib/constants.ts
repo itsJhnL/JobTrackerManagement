@@ -13,6 +13,7 @@ export const APPLICATION_STATUSES = [
   "assessment",
   "offer",
   "hired",
+  "on_hold",
   "rejected",
   "withdrawn",
   "closed",
@@ -29,6 +30,7 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   assessment: "Assessment",
   offer: "Offer",
   hired: "Hired",
+  on_hold: "On hold",
   rejected: "Rejected",
   withdrawn: "Withdrawn",
   closed: "Closed",
@@ -45,6 +47,8 @@ export const APPLICATION_STATUS_STYLES: Record<ApplicationStatus, string> = {
   assessment: "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-transparent",
   offer: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-transparent",
   hired: "bg-emerald-600/15 text-emerald-800 dark:text-emerald-200 border-transparent",
+  on_hold:
+    "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30 border-dashed",
   rejected: "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-transparent",
   withdrawn: "bg-muted text-muted-foreground border-transparent",
   closed: "bg-muted text-muted-foreground border-transparent line-through",
@@ -66,6 +70,7 @@ export const APPLICATION_STATUS_COLORS: Record<ApplicationStatus, string> = {
   assessment: "#e87ba4",
   offer: "#008300",
   hired: "#6250d6",
+  on_hold: "#a79ce6",
   rejected: "#e34948",
   withdrawn: "#a3a29c",
   closed: "#a3a29c",
@@ -82,6 +87,7 @@ export const APPLICATION_STATUS_COLORS_DARK: Record<ApplicationStatus, string> =
   assessment: "#d55181",
   offer: "#008300",
   hired: "#9085e9",
+  on_hold: "#6c63a8",
   rejected: "#e66767",
   withdrawn: "#6f6e69",
   closed: "#6f6e69",
@@ -100,6 +106,13 @@ export const ACTIVE_STATUSES: readonly ApplicationStatus[] = [
   "assessment",
   "offer",
 ];
+
+/**
+ * Still hired, but paused: the client keeps you for future or per-diem work
+ * and will call when needed. Counts as hired in analytics, stays an employment
+ * record, but is left out of estimated income and gets no follow-up nudges.
+ */
+export const HIRED_STATUSES: readonly ApplicationStatus[] = ["hired", "on_hold"];
 
 export const TERMINAL_STATUSES: readonly ApplicationStatus[] = [
   "hired",

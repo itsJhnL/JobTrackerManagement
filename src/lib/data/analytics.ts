@@ -48,9 +48,16 @@ const RESPONDED: ApplicationStatus[] = [
   "assessment",
   "offer",
   "hired",
+  "on_hold",
 ];
-const INTERVIEWED: ApplicationStatus[] = ["interview", "assessment", "offer", "hired"];
-const OFFERED: ApplicationStatus[] = ["offer", "hired"];
+const INTERVIEWED: ApplicationStatus[] = [
+  "interview",
+  "assessment",
+  "offer",
+  "hired",
+  "on_hold",
+];
+const OFFERED: ApplicationStatus[] = ["offer", "hired", "on_hold"];
 
 export async function getAnalytics(
   supabase: SupabaseServerClient,

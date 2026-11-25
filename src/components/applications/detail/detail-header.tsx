@@ -35,6 +35,15 @@ export function DetailHeader({ application: a }: { application: ApplicationRow }
               <h1 className="font-heading text-xl font-semibold tracking-tight md:text-2xl">
                 {a.company_name}
               </h1>
+              {a.status === "on_hold" ? (
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-violet-500/30 bg-violet-500/5 text-violet-700 dark:text-violet-300"
+                >
+                  <BriefcaseBusiness />
+                  On hold · will be called when needed
+                </Badge>
+              ) : null}
               {a.status === "hired" ? (
                 <Badge
                   variant="outline"

@@ -22,7 +22,7 @@ interface PipelineProps {
 
 export function Pipeline({ byStatus, total }: PipelineProps) {
   const funnel = APPLICATION_STATUSES.filter(
-    (s) => !TERMINAL_STATUSES.includes(s) || s === "hired",
+    (s) => !TERMINAL_STATUSES.includes(s) || s === "hired" || s === "on_hold",
   );
   const terminal: ApplicationStatus[] = ["rejected", "withdrawn", "closed"];
   const max = Math.max(1, ...funnel.map((s) => byStatus[s]));

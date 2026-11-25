@@ -135,7 +135,7 @@ export async function getDashboardData(
     applications,
     counts,
     interviewsScheduled: interviews.count ?? 0,
-    offers: counts.byStatus.offer + counts.byStatus.hired,
+    offers: counts.byStatus.offer + counts.byStatus.hired + counts.byStatus.on_hold,
     followUps: {
       overdue: followUps.filter((f) => f.bucket === "overdue"),
       today: followUps.filter((f) => f.bucket === "today"),

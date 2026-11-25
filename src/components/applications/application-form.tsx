@@ -495,10 +495,14 @@ export function ApplicationForm({
         </Section>
       ) : null}
 
-      {watched.status === "hired" ? (
+      {watched.status === "hired" || watched.status === "on_hold" ? (
         <Section
           title="Employment"
-          description="A hired application is an employment record. Only active records count toward estimated income."
+          description={
+            watched.status === "on_hold"
+              ? "On hold: you are still engaged, but this record is left out of estimated income until you set it back to Hired."
+              : "A hired application is an employment record. Only active records count toward estimated income."
+          }
         >
           <div className={grid}>
             <Controller

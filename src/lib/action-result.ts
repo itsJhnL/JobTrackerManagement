@@ -16,7 +16,17 @@ export function fail<T = never>(
   error: string,
   fieldErrors?: Record<string, string[]>,
 ): ActionResult<T> {
-  return { ok: false, error, fieldErrors };
+  return { ok: false, error: friendlyDbError(error), fieldErrors };
+}
+
+/**
+ * A status added in the app before its migration ran fails with a Postgres
+ * enum error; say which migration fixes it instead.
+ */
+function friendlyDbError(message: string) {
+  if (/invalid input value for enum application_status: "on_hold"/.test(message))
+    return "The “On hold” status isn’t enabled in the database yet. Run supabase/migrations/0004_status_on_hold.sql in the Supabase SQL editor, then try again.";
+  return message;
 }
 
 export function fromZodError<T = never>(error: ZodError): ActionResult<T> {
