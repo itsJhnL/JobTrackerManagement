@@ -36,6 +36,13 @@ What "done" means for this project, in priority order. When two goals conflict, 
 
 | 7 Audit round (2026-11-06) | Perf (router cache, request-scoped client), time-zone picker + consistent TZ rendering, logout hardening, employment income with PHP conversion + FX history, new statuses, Google Gmail/Calendar integration layer, Inbox review, cron | done; Google flows untested without credentials |
 
+## Known gaps (as of 2026-11-27)
+
+- Inbox notifications are stored in `activities.metadata` (jsonb). Unread counts filter on jsonb keys without an index; fine for one user's activity log, but a dedicated `notifications` table with indexed `read_at` is the next step if volume grows.
+- Marking read/unread updates rows one by one (jsonb merge); "Mark all as read" handles up to 500 items per click.
+- Notifications update by the existing poll (about once a minute and on tab focus), not push.
+- Migration `0004_status_on_hold.sql` is not applied to the live project yet; choosing "On hold" shows a message naming the migration.
+
 ## Known gaps (as of 2026-11-09)
 
 - Inbox routing (Inbox / Saved to Applications / Filtered) is verified against the live database with simulated Gmail, and the rules were dry-run on the real mailbox (100 messages: 15 Indeed confirmations, 64 job alerts, 21 for the AI; no recruiter email filtered). The first real sync with the new rules has not been run yet.

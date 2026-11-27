@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 
+import { HireCelebration } from "@/components/applications/hire-celebration";
 import { QuickAddProvider } from "@/components/applications/quick-add-provider";
 import { BackgroundSync } from "@/components/integrations/background-sync";
 import { AppHeader } from "@/components/layout/app-header";
@@ -47,7 +48,23 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     date: f.due_date,
     overdue: f.bucket === "overdue",
   }));
-  const notifications = [...emailNotifications, ...followUpNotifications];
+  // Hires, offers, interviews and status changes found or made since the last visit.
+  const updateNotifications: NotificationItem[] = inbox.latestNotifications.map((n) => ({
+    id: `update-${n.id}`,
+    kind: "update",
+    title: n.title,
+    subtitle: n.application
+      ? `${n.application.company_name} · ${n.application.job_title}`
+      : n.description,
+    href: "/inbox",
+    date: n.at,
+    overdue: false,
+  }));
+  const notifications = [
+    ...updateNotifications,
+    ...emailNotifications,
+    ...followUpNotifications,
+  ];
 
   const badges = {
     "/follow-ups": due.filter((f) => f.bucket === "overdue" || f.bucket === "today")
@@ -76,6 +93,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <div id="content" className="flex flex-1 flex-col gap-6 p-4 md:p-6">
               {children}
               <BackgroundSync unread={inbox.unread} />
+              <HireCelebration
+                firstName={profile.full_name?.trim().split(/\s+/)[0] || null}
+              />
             </div>
           </SidebarInset>
         </SidebarProvider>

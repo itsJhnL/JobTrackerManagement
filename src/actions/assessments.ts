@@ -12,6 +12,7 @@ import {
 import { requireUserForAction } from "@/lib/auth";
 import { ASSESSMENT_STATUS_LABELS } from "@/lib/constants";
 import { logActivity } from "@/lib/data/activities";
+import { notificationMetadata } from "@/lib/notifications";
 import { uuid } from "@/lib/validations/common";
 import { assessmentSchema, updateAssessmentSchema } from "@/lib/validations/assessment";
 
@@ -40,6 +41,7 @@ export async function createAssessment(
       applicationId: data.application_id,
       type: "assessment_added",
       title: `Added assessment: ${data.title}`,
+      metadata: notificationMetadata("you"),
     });
     await supabase
       .from("applications")

@@ -12,6 +12,7 @@ import {
 import { requireUserForAction } from "@/lib/auth";
 import { INTERVIEW_OUTCOME_LABELS } from "@/lib/constants";
 import { logActivity } from "@/lib/data/activities";
+import { notificationMetadata } from "@/lib/notifications";
 import { uuid } from "@/lib/validations/common";
 import { interviewSchema, updateInterviewSchema } from "@/lib/validations/interview";
 
@@ -43,7 +44,10 @@ export async function createInterview(
       applicationId: data.application_id,
       type: "interview_scheduled",
       title: `Interview scheduled with ${company}`,
-      metadata: { scheduled_at: parsed.data.scheduled_at },
+      metadata: {
+        scheduled_at: parsed.data.scheduled_at,
+        ...notificationMetadata("you"),
+      },
     });
     // Move the pipeline forward if the application is still early-stage.
     await supabase

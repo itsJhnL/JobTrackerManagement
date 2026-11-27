@@ -21,6 +21,8 @@ import {
 import { getAccessToken } from "./client";
 import { getMessage, listRecentMessages, type GmailMessage } from "./gmail";
 import { detectInterview } from "../calendar-detect";
+import { notificationMetadata } from "@/lib/notifications";
+
 import { cleanSubject } from "../email-content";
 import {
   EMAIL_RULES_VERSION,
@@ -871,7 +873,7 @@ export async function syncCalendar(
             applicationId,
             type: "interview_scheduled",
             title: `Interview${app ? ` with ${app.company_name}` : ""} found on Google Calendar`,
-            metadata: { google_event_id: e.id },
+            metadata: { google_event_id: e.id, ...notificationMetadata("sync") },
           });
           // Keep the pipeline consistent: an interview means the application reached that stage.
           if (app && PRE_INTERVIEW_STATUSES.includes(app.status)) {
@@ -886,6 +888,11 @@ export async function syncCalendar(
                 applicationId,
                 type: "status_changed",
                 title: `${app.company_name}: status moved to Interview (from Google Calendar)`,
+                metadata: {
+                  from: app.status,
+                  to: "interview",
+                  ...notificationMetadata("sync"),
+                },
               });
               app.status = "interview";
             }

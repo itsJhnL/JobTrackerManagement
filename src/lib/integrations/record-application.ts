@@ -4,6 +4,8 @@ import type { ApplicationStatus } from "@/lib/constants";
 import { logActivity } from "@/lib/data/activities";
 import type { SupabaseServerClient } from "@/lib/supabase/server";
 
+import { notificationMetadata } from "@/lib/notifications";
+
 import { normalize } from "./matching";
 
 type Db = SupabaseServerClient;
@@ -158,6 +160,9 @@ export async function findOrCreateApplication(
         0,
         200,
       ),
+    // Listed under Applications in the Inbox, already read: receipts should
+    // not demand attention.
+    metadata: notificationMetadata("sync", { unread: false }),
   });
   return { applicationId: created.id, created: true, updated: [] };
 }

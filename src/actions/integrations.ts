@@ -26,7 +26,8 @@ import { uuid } from "@/lib/validations/common";
 import { trackCalendarEventSchema } from "@/lib/validations/interview";
 import { platformFromMeetingUrl } from "@/lib/integrations/calendar-detect";
 import { normalize } from "@/lib/integrations/matching";
-import { EMAIL_READ_KEY } from "@/lib/inbox";
+import { hireEvent, type HireEvent } from "@/lib/hire-event";
+import { notificationMetadata, statusChangeTitle } from "@/lib/notifications";
 import type { Json } from "@/lib/supabase/database.types";
 import { EMAIL_RULES_VERSION, platformFromSender } from "@/lib/integrations/email-rules";
 import {
@@ -120,7 +121,7 @@ const confirmSchema = z
  */
 export async function confirmEmail(
   input: unknown,
-): Promise<ActionResult<{ interviewId: string | null }>> {
+): Promise<ActionResult<{ interviewId: string | null; celebrate: HireEvent | null }>> {
   const parsed = confirmSchema.safeParse(input);
   if (!parsed.success) return fromZodError(parsed.error);
   const v = parsed.data;
@@ -145,7 +146,7 @@ export async function confirmEmail(
         .eq("user_id", user.id);
       if (upErr) return fail(upErr.message);
       revalidate();
-      return ok({ interviewId: null });
+      return ok({ interviewId: null, celebrate: null });
     }
 
     let applicationId = v.application_id ?? null;
@@ -216,6 +217,7 @@ export async function confirmEmail(
           applicationId: app.id,
           type: "interview_scheduled",
           title: `Interview scheduled with ${app.company_name} (from email)`,
+          metadata: notificationMetadata("you"),
         });
 
         if (v.add_to_calendar) {
@@ -233,12 +235,34 @@ export async function confirmEmail(
       }
     }
 
+    let celebrate: HireEvent | null = null;
     if (v.apply_status && v.apply_status !== app.status) {
-      await supabase
+      const next = v.apply_status as ApplicationStatus;
+      const { data: changed } = await supabase
         .from("applications")
-        .update({ status: v.apply_status as ApplicationStatus })
+        .update({
+          status: next,
+          ...(next === "hired" ? { employment_active: true } : {}),
+        })
         .eq("id", app.id)
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .neq("status", next)
+        .select("id");
+      if (changed?.length) {
+        await logActivity(supabase, {
+          userId: user.id,
+          applicationId: app.id,
+          type: "status_changed",
+          title: statusChangeTitle(app.company_name, next),
+          metadata: {
+            from: app.status,
+            to: next,
+            ...notificationMetadata("you", { status: next }),
+          },
+        });
+        if (next === "hired")
+          celebrate = hireEvent(app.id, app.company_name, app.job_title);
+      }
     }
 
     if (v.log_communication)
@@ -257,7 +281,7 @@ export async function confirmEmail(
 
     revalidate();
     revalidatePath(`/applications/${app.id}`);
-    return ok({ interviewId });
+    return ok({ interviewId, celebrate });
   } catch (e) {
     return fail(describe(e));
   }
@@ -450,6 +474,7 @@ export async function trackCalendarEvent(
       applicationId,
       type: "interview_scheduled",
       title: `Interview${companyName ? ` with ${companyName}` : ""} tracked from Google Calendar`,
+      metadata: notificationMetadata("you"),
     });
 
     revalidate();
@@ -457,48 +482,6 @@ export async function trackCalendarEvent(
     return ok({ interviewId: interview.id, applicationId });
   } catch (e) {
     return fail(describe(e));
-  }
-}
-
-/** Marks detected emails as read (opened). Pass ids, or nothing for all unread. */
-export async function markEmailsRead(
-  input?: unknown,
-): Promise<ActionResult<{ count: number }>> {
-  const parsed = z.array(uuid).max(500).optional().safeParse(input);
-  if (!parsed.success) return fromZodError(parsed.error);
-  try {
-    const { user, supabase } = await requireUserForAction();
-    let q = supabase
-      .from("email_messages")
-      .select("id, extracted")
-      .eq("user_id", user.id)
-      .eq("review_status", "pending")
-      .is(`extracted->>${EMAIL_READ_KEY}`, null);
-    if (parsed.data) q = q.in("id", parsed.data);
-    const { data, error } = await q.limit(500);
-    if (error) return fail(error.message);
-    const readAt = new Date().toISOString();
-    // `extracted` is jsonb: merge the flag into what is already there.
-    const results = await Promise.all(
-      (data ?? []).map((e) =>
-        supabase
-          .from("email_messages")
-          .update({
-            extracted: {
-              ...((e.extracted as Record<string, Json> | null) ?? {}),
-              [EMAIL_READ_KEY]: readAt,
-            },
-          })
-          .eq("id", e.id)
-          .eq("user_id", user.id),
-      ),
-    );
-    const failed = results.find((r) => r.error);
-    if (failed?.error) return fail(failed.error.message);
-    revalidatePath("/", "layout");
-    return ok({ count: data?.length ?? 0 });
-  } catch (e) {
-    return fromUnknownError(e);
   }
 }
 

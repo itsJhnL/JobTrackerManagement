@@ -5,6 +5,7 @@ import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
 
 import { updateApplicationStatus } from "@/actions/applications";
+import { celebrateHire } from "@/components/applications/hire-celebration";
 import {
   Select,
   SelectContent,
@@ -49,7 +50,9 @@ export function StatusSelect({ id, status, size = "sm", className }: StatusSelec
           const r = await updateApplicationStatus({ id, status: next });
           if (!r.ok) toast.error(r.error);
           else {
-            toast.success(`Moved to ${APPLICATION_STATUS_LABELS[next]}`);
+            // Only a saved change to Hired returns an event; a failed save never celebrates.
+            if (r.data.celebrate) celebrateHire(r.data.celebrate);
+            else toast.success(`Moved to ${APPLICATION_STATUS_LABELS[next]}`);
             router.refresh();
           }
         });

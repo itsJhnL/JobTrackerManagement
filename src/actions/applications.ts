@@ -12,6 +12,8 @@ import {
 import { requireUserForAction } from "@/lib/auth";
 import { APPLICATION_STATUS_LABELS } from "@/lib/constants";
 import { logActivity } from "@/lib/data/activities";
+import { hireEvent, type HireEvent } from "@/lib/hire-event";
+import { notificationMetadata, statusChangeTitle } from "@/lib/notifications";
 import { suggestDueDateString } from "@/lib/follow-ups";
 import { todayDateString } from "@/lib/format";
 import { getProfile } from "@/lib/data/profiles";
@@ -143,13 +145,24 @@ export async function createApplication(
 
 export async function updateApplication(
   input: unknown,
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; celebrate: HireEvent | null }>> {
   const parsed = updateApplicationSchema.safeParse(input);
   if (!parsed.success) return fromZodError(parsed.error);
 
   try {
     const { user, supabase } = await requireUserForAction();
     const { id, ...values } = parsed.data;
+
+    // Needed to tell a real status change from a form save that resends the same status.
+    const { data: before } =
+      "status" in values && values.status
+        ? await supabase
+            .from("applications")
+            .select("status")
+            .eq("id", id)
+            .eq("user_id", user.id)
+            .maybeSingle()
+        : { data: null };
 
     // Only send the keys that were provided so partial edits (inline) are safe.
     const patch = Object.fromEntries(
@@ -161,28 +174,46 @@ export async function updateApplication(
       .update(patch)
       .eq("id", id)
       .eq("user_id", user.id)
-      .select("id, status, company_name")
+      .select("id, status, company_name, job_title")
       .single();
     if (error) return fail(error.message);
 
-    if ("status" in values && values.status) {
+    const statusChanged = !!before && before.status !== data.status;
+    if (statusChanged) {
       await logActivity(supabase, {
         userId: user.id,
         applicationId: id,
         type: "status_changed",
-        title: `${data.company_name} moved to ${APPLICATION_STATUS_LABELS[data.status]}`,
-        metadata: { status: data.status },
+        title: statusChangeTitle(data.company_name, data.status),
+        metadata: {
+          from: before.status,
+          to: data.status,
+          ...notificationMetadata("you", { status: data.status }),
+        },
       });
     }
 
     revalidateAll(id);
-    return ok({ id });
+    return ok({
+      id,
+      celebrate:
+        statusChanged && data.status === "hired"
+          ? hireEvent(id, data.company_name, data.job_title)
+          : null,
+    });
   } catch (e) {
     return fromUnknownError(e);
   }
 }
 
-export async function updateApplicationStatus(input: unknown): Promise<ActionResult> {
+/**
+ * Changes the status. Exactly one request can make a given change: the update
+ * only matches a row whose status is still different, so a double click or two
+ * tabs produce one notification and one celebration, never two.
+ */
+export async function updateApplicationStatus(
+  input: unknown,
+): Promise<ActionResult<{ celebrate: HireEvent | null }>> {
   const parsed = updateStatusSchema.safeParse(input);
   if (!parsed.success) return fromZodError(parsed.error);
 
@@ -192,12 +223,12 @@ export async function updateApplicationStatus(input: unknown): Promise<ActionRes
 
     const { data: before } = await supabase
       .from("applications")
-      .select("status, company_name, applied_at, employment_started_at")
+      .select("status, company_name, job_title, applied_at, employment_started_at")
       .eq("id", id)
       .eq("user_id", user.id)
       .maybeSingle();
     if (!before) return fail("Application not found.");
-    if (before.status === status) return ok(undefined);
+    if (before.status === status) return ok({ celebrate: null });
 
     const patch: TablesUpdate<"applications"> = { status };
     if (status === "hired") {
@@ -206,12 +237,16 @@ export async function updateApplicationStatus(input: unknown): Promise<ActionRes
     }
     if (status === "applied" && !before.applied_at) patch.applied_at = todayDateString();
 
-    const { error } = await supabase
+    const { data: changed, error } = await supabase
       .from("applications")
       .update(patch)
       .eq("id", id)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .neq("status", status)
+      .select("id");
     if (error) return fail(error.message);
+    // Another request already made this change.
+    if (!changed?.length) return ok({ celebrate: null });
 
     if (note) {
       await supabase
@@ -228,12 +263,19 @@ export async function updateApplicationStatus(input: unknown): Promise<ActionRes
       userId: user.id,
       applicationId: id,
       type: "status_changed",
-      title: `${before.company_name} moved to ${APPLICATION_STATUS_LABELS[status]}`,
-      metadata: { from: before.status, to: status },
+      title: statusChangeTitle(before.company_name, status),
+      metadata: {
+        from: before.status,
+        to: status,
+        ...notificationMetadata("you", { status }),
+      },
     });
 
     revalidateAll(id);
-    return ok(undefined);
+    return ok({
+      celebrate:
+        status === "hired" ? hireEvent(id, before.company_name, before.job_title) : null,
+    });
   } catch (e) {
     return fromUnknownError(e);
   }

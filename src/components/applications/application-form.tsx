@@ -8,6 +8,8 @@ import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createApplication, updateApplication } from "@/actions/applications";
+import { celebrateHire } from "@/components/applications/hire-celebration";
+import type { HireEvent } from "@/lib/hire-event";
 import {
   CheckboxGroupField,
   DateField,
@@ -191,6 +193,8 @@ export function ApplicationForm({
       }
 
       toast.success(mode === "edit" ? "Application updated" : "Application added");
+      if ("celebrate" in result.data)
+        celebrateHire(result.data.celebrate as HireEvent | null);
       if (onSuccess) onSuccess(result.data.id);
       else router.push(`/applications/${result.data.id}`);
     });
